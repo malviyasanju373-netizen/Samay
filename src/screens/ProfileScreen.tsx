@@ -4,7 +4,6 @@ import {
   Image, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as ImagePicker from "expo-image-picker";
 import { signOut, updateProfile } from "firebase/auth";
 import { auth } from "@/firebase";
 import { useTheme } from "@/context/ThemeContext";
@@ -68,6 +67,13 @@ export default function ProfileScreen({ navigation }: any) {
   }, [user]);
 
   const handlePickPhoto = async () => {
+    let ImagePicker: typeof import("expo-image-picker");
+    try {
+      ImagePicker = require("expo-image-picker");
+    } catch {
+      showDialog("Unavailable", "Photo picker is not available on this build.");
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") { showDialog("Permission Needed", "Allow photo access to set a profile picture."); return; }
     const result = await ImagePicker.launchImageLibraryAsync({

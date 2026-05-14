@@ -7,14 +7,29 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, (u) => {
-      setUser(u ? { ...u } : null);
+    console.log('[useAuth] subscribing to auth state');
+    let unsubAuth: () => void;
+    let unsubToken: () => void;
+    try {
+      unsubAuth = onAuthStateChanged(auth, (u) => {
+        console.log('[useAuth] onAuthStateChanged — user:', u?.uid ?? 'null');
+        setUser(u ? { ...u } : null);
+        setLoading(false);
+      }, (err) => {
+        console.error('[useAuth] onAuthStateChanged error:', err?.message);
+        setLoading(false);
+      });
+      unsubToken = onIdTokenChanged(auth, (u) => {
+        console.log('[useAuth] onIdTokenChanged — user:', u?.uid ?? 'null');
+        setUser(u ? { ...u } : null);
+      }, (err) => {
+        console.error('[useAuth] onIdTokenChanged error:', err?.message);
+      });
+    } catch (e: any) {
+      console.error('[useAuth] subscription setup FAILED:', e?.message);
       setLoading(false);
-    });
-    const unsubToken = onIdTokenChanged(auth, (u) => {
-      setUser(u ? { ...u } : null);
-    });
-    return () => { unsubAuth(); unsubToken(); };
+    }
+    return () => { unsubAuth?.(); unsubToken?.(); };
   }, []);
 
   return { user, loading };

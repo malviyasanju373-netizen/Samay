@@ -53,9 +53,9 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
   }, [user]);
 
   if (authLoading) return null;
-  if (!user) return <AuthStack />;
+  if (!user && !__DEV__) return <AuthStack />;
 
-  if (!user.displayName || !user.displayName.trim()) {
+  if (user && (!user.displayName || !user.displayName.trim())) {
     return (
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="ProfileSetup"    component={ProfileSetupScreen} />
