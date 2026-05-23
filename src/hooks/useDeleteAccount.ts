@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { EmailAuthProvider, deleteUser, reauthenticateWithCredential } from "firebase/auth";
 import { deleteDoc, doc } from "firebase/firestore";
-import { auth, db } from "@/firebase";
+import { auth, requireFirestore } from "@/firebase";
 
 type DeleteAccountResult =
   | { success: true }
@@ -45,7 +45,7 @@ export function useDeleteAccount() {
       setError(r.message);
       return r;
     }
-    const user = auth.currentUser;
+    const user = auth?.currentUser;
     if (!user) { const r: DeleteAccountResult = { success: false, code: "missing-user", message: "No signed-in user found." }; setError(r.message); return r; }
     if (!user.email) { const r: DeleteAccountResult = { success: false, code: "missing-email", message: "This account does not support password re-authentication." }; setError(r.message); return r; }
 
@@ -59,6 +59,7 @@ export function useDeleteAccount() {
       }
       const credential = EmailAuthProvider.credential(user.email, trimmedPassword);
       await reauthenticateWithCredential(user, credential);
+      const db = requireFirestore();
       await deleteDoc(doc(db, "users", user.uid));
       await deleteDoc(doc(db, "userProfiles", user.uid));
       await deleteUser(user);

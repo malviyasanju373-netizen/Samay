@@ -15,6 +15,9 @@ import DeleteAccountScreen   from "@/screens/DeleteAccountScreen";
 import AccountScreen         from "@/screens/AccountScreen";
 import PrivacySecurityScreen from "@/screens/PrivacySecurityScreen";
 import LeaderboardScreen     from "@/screens/LeaderboardScreen";
+import GroupsListScreen      from "@/screens/GroupsListScreen";
+import CreateGroupScreen     from "@/screens/CreateGroupScreen";
+import GroupDetailScreen     from "@/screens/GroupDetailScreen";
 import { ensureUserProfile } from "@/services/userProfile";
 
 const TERMS_LAST_UPDATED = new Date("2025-05-01T00:00:00Z").getTime();
@@ -32,10 +35,18 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
   const [checkedTerms, setCheckedTerms] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setNeedsTerms(false);
+      setCheckedTerms(false);
+      return;
+    }
+    setCheckedTerms(false);
     AsyncStorage.getItem(TERMS_ACCEPTED_AT_KEY).then((acceptedAt) => {
       const acceptedTime = acceptedAt ? new Date(acceptedAt).getTime() : 0;
       setNeedsTerms(acceptedTime < TERMS_LAST_UPDATED);
+      setCheckedTerms(true);
+    }).catch(() => {
+      setNeedsTerms(true);
       setCheckedTerms(true);
     });
   }, [user]);
@@ -53,7 +64,8 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
   }, [user]);
 
   if (authLoading) return null;
-  if (!user && !__DEV__) return <AuthStack />;
+  if (!user) return <AuthStack />;
+  if (!checkedTerms) return null;
 
   if (user && (!user.displayName || !user.displayName.trim())) {
     return (
@@ -67,6 +79,9 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
         <Stack.Screen name="Account"         component={AccountScreen} />
         <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
         <Stack.Screen name="MainTabs"        component={RootNavigator} />
+        <Stack.Screen name="GroupsList"      component={GroupsListScreen} />
+        <Stack.Screen name="CreateGroup"     component={CreateGroupScreen} />
+        <Stack.Screen name="GroupDetail"     component={GroupDetailScreen} />
       </Stack.Navigator>
     );
   }
@@ -82,6 +97,9 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
         <Stack.Screen name="Account"         component={AccountScreen} />
         <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
         <Stack.Screen name="MainTabs"        component={RootNavigator} />
+        <Stack.Screen name="GroupsList"      component={GroupsListScreen} />
+        <Stack.Screen name="CreateGroup"     component={CreateGroupScreen} />
+        <Stack.Screen name="GroupDetail"     component={GroupDetailScreen} />
       </Stack.Navigator>
     );
   }
@@ -98,6 +116,9 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
       <Stack.Screen name="Account"         component={AccountScreen} />
       <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
       <Stack.Screen name="Leaderboard"     component={LeaderboardScreen} />
+      <Stack.Screen name="GroupsList"      component={GroupsListScreen} />
+      <Stack.Screen name="CreateGroup"     component={CreateGroupScreen} />
+      <Stack.Screen name="GroupDetail"     component={GroupDetailScreen} />
     </Stack.Navigator>
   );
 };

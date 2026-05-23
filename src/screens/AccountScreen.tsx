@@ -12,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function AccountScreen({ navigation }: any) {
   const { theme } = useTheme();
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   const s = createStyles(theme);
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -26,6 +26,7 @@ export default function AccountScreen({ navigation }: any) {
 
   const handleSendReset = async () => {
     if (!user?.email) return;
+    if (!auth) return;
     setPasswordSending(true);
     setPasswordError("");
     try {

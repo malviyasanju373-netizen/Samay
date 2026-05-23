@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Animated, Modal, Pressable, TextInput,
+  Animated, Modal, Pressable, TextInput, ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
@@ -29,7 +29,7 @@ function pad(n: number) { return String(n).padStart(2, "0"); }
 
 export default function TimerScreen({ route, navigation }: any) {
   const { theme } = useTheme();
-  const { timerState, minutes, seconds, progress, activeSession, start, pause, resume, stop, cancel } = useFocusTimer();
+  const { timerState, minutes, seconds, progress, activeSession, error, clearError, start, pause, resume, stop, cancel } = useFocusTimer();
   const s = createStyles(theme);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(route?.params?.categoryId ?? "other");
@@ -38,6 +38,7 @@ export default function TimerScreen({ route, navigation }: any) {
   const [customTitle, setCustomTitle] = useState("");
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [completedMinutes, setCompletedMinutes] = useState(0);
+  const [busy, setBusy] = useState(false);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
 
@@ -68,19 +69,28 @@ export default function TimerScreen({ route, navigation }: any) {
 
   const handleStartPress = () => {
     if (!isIdle) return;
+    clearError();
     setCustomTitle(selectedCat.label);
     setShowStartModal(true);
   };
 
   const handleConfirmStart = async () => {
+    if (busy) return;
+    setBusy(true);
     setShowStartModal(false);
     await start(selectedCategoryId, customTitle.trim() || selectedCat.label, selectedTarget);
+    setBusy(false);
   };
 
   const handleStop = async () => {
+    if (busy) return;
+    setBusy(true);
     const done = await stop();
-    setCompletedMinutes(done);
-    setShowCompletionModal(true);
+    if (done > 0) {
+      setCompletedMinutes(done);
+      setShowCompletionModal(true);
+    }
+    setBusy(false);
   };
 
   return (
@@ -139,8 +149,8 @@ export default function TimerScreen({ route, navigation }: any) {
         {/* Controls */}
         <View style={s.controls}>
           {isIdle && (
-            <TouchableOpacity onPress={handleStartPress} style={[s.mainBtn, { backgroundColor: theme.colors.primary }]} activeOpacity={0.85}>
-              <Ionicons name="play" size={28} color="#fff" />
+            <TouchableOpacity onPress={handleStartPress} disabled={busy} style={[s.mainBtn, { backgroundColor: theme.colors.primary }, busy && s.disabled]} activeOpacity={0.85}>
+              {busy ? <ActivityIndicator color="#fff" /> : <Ionicons name="play" size={28} color="#fff" />}
             </TouchableOpacity>
           )}
           {isRunning && (
@@ -148,8 +158,8 @@ export default function TimerScreen({ route, navigation }: any) {
               <TouchableOpacity onPress={pause} style={[s.mainBtn, { backgroundColor: theme.colors.timerPaused }]} activeOpacity={0.85}>
                 <Ionicons name="pause" size={28} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleStop} style={s.stopBtn} activeOpacity={0.85}>
-                <Ionicons name="stop" size={22} color={theme.colors.error} />
+              <TouchableOpacity onPress={handleStop} disabled={busy} style={[s.stopBtn, busy && s.disabled]} activeOpacity={0.85}>
+                {busy ? <ActivityIndicator color={theme.colors.error} /> : <Ionicons name="stop" size={22} color={theme.colors.error} />}
               </TouchableOpacity>
             </>
           )}
@@ -164,6 +174,7 @@ export default function TimerScreen({ route, navigation }: any) {
             </>
           )}
         </View>
+        {error ? <Text style={s.errorText}>{error}</Text> : null}
 
         {/* Category selector (only when idle) */}
         {isIdle && (
@@ -217,9 +228,9 @@ export default function TimerScreen({ route, navigation }: any) {
               returnKeyType="done"
               onSubmitEditing={handleConfirmStart}
             />
-            <TouchableOpacity onPress={handleConfirmStart} style={[s.modalBtn, { backgroundColor: theme.colors.primary }]} activeOpacity={0.85}>
-              <Ionicons name="play" size={18} color="#fff" />
-              <Text style={s.modalBtnText}>Start</Text>
+            <TouchableOpacity onPress={handleConfirmStart} disabled={busy} style={[s.modalBtn, { backgroundColor: theme.colors.primary }, busy && s.disabled]} activeOpacity={0.85}>
+              {busy ? <ActivityIndicator color="#fff" /> : <Ionicons name="play" size={18} color="#fff" />}
+              <Text style={s.modalBtnText}>{busy ? "Starting" : "Start"}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowStartModal(false)} style={s.modalCancelBtn}>
               <Text style={s.modalCancelText}>Cancel</Text>
@@ -262,6 +273,8 @@ function createStyles(theme: any) {
     timerCategory: { fontSize: 14, fontWeight: "600", color: theme.colors.textSecondary, marginTop: -4 },
     timerTarget: { fontSize: 12, color: theme.colors.textTertiary, marginTop: 2 },
     controls: { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 32 },
+    disabled: { opacity: 0.6 },
+    errorText: { color: theme.colors.error, fontSize: 13, fontWeight: "600", textAlign: "center", marginTop: -18, marginBottom: 20 },
     mainBtn: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center" },
     stopBtn: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: theme.colors.border },
     sectionLabel: { alignSelf: "flex-start", fontSize: 10, fontWeight: "700", color: theme.colors.textTertiary, letterSpacing: 1.2, marginBottom: 10 },

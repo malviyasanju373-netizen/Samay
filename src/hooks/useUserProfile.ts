@@ -61,6 +61,11 @@ export function useUserProfile() {
   }, []);
 
   useEffect(() => {
+    if (!auth) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
     const unsub = onAuthStateChanged(auth, (user) => {
       if (user) {
         loadForUser(user.uid, { displayName: user.displayName, email: user.email, photoURL: user.photoURL });
@@ -76,7 +81,7 @@ export function useUserProfile() {
   }, [loadForUser, profile?.uid]);
 
   const reload = useCallback((): Promise<UserProfile | null> => {
-    const user = auth.currentUser;
+    const user = auth?.currentUser;
     if (user) return loadForUser(user.uid, { displayName: user.displayName, email: user.email, photoURL: user.photoURL }, { force: true });
     return Promise.resolve(null);
   }, [loadForUser]);

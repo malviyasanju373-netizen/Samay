@@ -9,29 +9,62 @@ import {
   sendPasswordResetEmail, GoogleAuthProvider, signInWithCredential,
   getAdditionalUserInfo,
 } from "firebase/auth";
-import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import { auth } from "@/firebase";
 import { useTheme } from "@/context/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createInitialUserProfile } from "@/services/userProfile";
 import { userProfileCacheService } from "@/storage/services";
 import AppDialog, { AppDialogButton } from "@/components/AppDialog";
+import { logGoogleSignInDiagnostics } from "@/utils/googleSignInDiagnostics";
 
 const WELCOME_BANNER_KEY = "WELCOME_BANNER_PENDING";
 const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
+// Run diagnostics on module load
+if (__DEV__) {
+  logGoogleSignInDiagnostics();
+}
+
+// Debug: Log environment loading
+if (__DEV__) {
+  console.log("[GoogleSignIn] Environment googleWebClientId:", googleWebClientId ? "✓ Found" : "✗ Missing");
+}
+
+const googleSignInModule = (() => {
+  try {
+    const module = require("@react-native-google-signin/google-signin") as typeof import("@react-native-google-signin/google-signin");
+    if (__DEV__) {
+      console.log("[GoogleSignIn] Module loaded successfully");
+    }
+    return module;
+  } catch (error) {
+    if (__DEV__) {
+      console.error("[GoogleSignIn] Failed to load module:", error);
+    }
+    return null;
+  }
+})();
+
 async function assignInitialProfileIfNeeded(user: any) {
   if (!user) return;
-  const profile = await createInitialUserProfile(user.uid, {
-    displayName: user.displayName,
-    email: user.email,
-    photoURL: user.photoURL,
-  });
-  await userProfileCacheService.set(user.uid, {
-    ...profile,
-    createdAt: profile.createdAt?.toMillis?.() ?? null,
-    usernameLastChanged: profile.usernameLastChanged?.toMillis?.() ?? null,
-  });
+  console.log("[assignInitialProfileIfNeeded] Starting for uid:", user.uid);
+  try {
+    const profile = await createInitialUserProfile(user.uid, {
+      displayName: user.displayName,
+      email: user.email,
+      photoURL: user.photoURL,
+    });
+    console.log("[assignInitialProfileIfNeeded] Profile created, uid:", user.uid, "username:", profile.username);
+    await userProfileCacheService.set(user.uid, {
+      ...profile,
+      createdAt: profile.createdAt?.toMillis?.() ?? null,
+      usernameLastChanged: profile.usernameLastChanged?.toMillis?.() ?? null,
+    });
+    console.log("[assignInitialProfileIfNeeded] Cache updated for uid:", user.uid);
+  } catch (error: any) {
+    console.error("[assignInitialProfileIfNeeded] Error for uid:", user.uid, "error:", error?.message);
+    throw error;
+  }
 }
 
 type DialogState = { title: string; message: string; buttons?: AppDialogButton[] };
@@ -51,45 +84,201 @@ export default function AuthChoiceScreen() {
 
   useEffect(() => {
     try {
-      if (!googleWebClientId) return;
-      GoogleSignin.configure({ webClientId: googleWebClientId });
+      if (__DEV__) {
+        console.log("[GoogleSignIn] Setup starting...", {
+          hasWebClientId: !!googleWebClientId,
+          hasModule: !!googleSignInModule,
+        });
+      }
+
+      if (!googleWebClientId) {
+        if (__DEV__) {
+          console.warn("[GoogleSignIn] Skipping setup: EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is not set. Please add it to your .env file.");
+        }
+        return;
+      }
+
+      if (!googleSignInModule) {
+        if (__DEV__) {
+          console.warn("[GoogleSignIn] Skipping setup: Google Sign-In module not available");
+        }
+        return;
+      }
+
+      // Configure Google Sign-In
+      googleSignInModule.GoogleSignin.configure({ 
+        webClientId: googleWebClientId,
+        offlineAccess: false,
+        forceCodeForRefreshToken: false,
+      });
+      
+      if (__DEV__) {
+        console.log("[GoogleSignIn] ✓ Configured successfully", {
+          webClientId: googleWebClientId ? googleWebClientId.substring(0, 20) + "..." : "NOT SET",
+          offlineAccess: false,
+        });
+      }
+      
       setGoogleConfigured(true);
-    } catch {}
+    } catch (error) {
+      if (__DEV__) {
+        console.error("[GoogleSignIn] Configuration failed:", error);
+      }
+    }
   }, []);
 
   const handleGoogleLogin = async () => {
-    if (!googleConfigured) { showDialog("Unavailable", "Google Sign-In is not configured yet."); return; }
-    if (auth.currentUser) { showDialog("Already Signed In", "You have an active session."); return; }
+    const currentAuth = auth;
+    if (!currentAuth) { showDialog("Unavailable", "Firebase is not configured yet."); return; }
+    if (!googleSignInModule || !googleConfigured) { 
+      if (__DEV__) {
+        console.warn("[GoogleSignIn] Cannot proceed with login:", {
+          moduleAvailable: !!googleSignInModule,
+          isConfigured: googleConfigured,
+          webClientIdSet: !!googleWebClientId,
+        });
+      }
+      showDialog("Unavailable", "Google Sign-In is not configured yet. Please check your .env file and ensure EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is set.");
+      return;
+    }
+    if (currentAuth.currentUser) { showDialog("Already Signed In", "You have an active session."); return; }
+    
+    if (__DEV__) {
+      console.log("[GoogleSignIn] Starting sign-in process...");
+    }
+    
     setGoogleLoading(true);
     try {
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
+      if (__DEV__) {
+        console.log("[GoogleSignIn] hasPlayServices check starting...");
+      }
+      
+      await googleSignInModule.GoogleSignin.hasPlayServices();
+      
+      if (__DEV__) {
+        console.log("[GoogleSignIn] ✓ Play Services available, signing in...");
+      }
+      
+      const userInfo = await googleSignInModule.GoogleSignin.signIn();
+      
+      if (__DEV__) {
+        console.log("[GoogleSignIn] User signed in successfully", {
+          uid: userInfo.data?.user?.id ? userInfo.data.user.id.substring(0, 8) + "..." : "N/A",
+          hasIdToken: !!userInfo.data?.idToken,
+          hasServerAuthCode: !!userInfo.data?.serverAuthCode,
+          userName: userInfo.data?.user?.name,
+          userEmail: userInfo.data?.user?.email,
+        });
+      }
+      
       const idToken = userInfo.data?.idToken ?? (userInfo as any).idToken;
-      if (!idToken) { showDialog("Sign-In Failed", "Could not get a valid token. Please try again."); return; }
+      
+      if (__DEV__) {
+        console.log("[GoogleSignIn] Extracted idToken", {
+          tokenLength: idToken ? idToken.length : 0,
+          tokenStart: idToken ? idToken.substring(0, 20) + "..." : "NO TOKEN",
+        });
+      }
+      
+      if (!idToken) { 
+        if (__DEV__) {
+          console.error("[GoogleSignIn] CRITICAL: No idToken received from Google. userInfo:", JSON.stringify(userInfo, null, 2));
+        }
+        showDialog("Sign-In Failed", "Could not get a valid token. Please try again."); 
+        return; 
+      }
+      
+      if (__DEV__) {
+        console.log("[GoogleSignIn] Creating Firebase credential...");
+      }
+      
       const credential = GoogleAuthProvider.credential(idToken);
-      const result = await signInWithCredential(auth, credential);
+      
+      if (__DEV__) {
+        console.log("[GoogleSignIn] ✓ Credential created, signing in to Firebase...");
+      }
+      
+      const result = await signInWithCredential(currentAuth, credential);
       const user = result.user as any;
-      if (getAdditionalUserInfo(result)?.isNewUser) await assignInitialProfileIfNeeded(user);
+      
+      if (__DEV__) {
+        console.log("[GoogleSignIn] ✓ Firebase sign-in successful", {
+          uid: user.uid ? user.uid.substring(0, 8) + "..." : "N/A",
+          email: user.email,
+          isNewUser: getAdditionalUserInfo(result)?.isNewUser,
+        });
+      }
+      
+      // Always ensure profile exists (not just for new users)
+      const isNewUser = getAdditionalUserInfo(result)?.isNewUser;
+      console.log("[GoogleSignIn] Auth uid:", user.uid, "isNewUser:", isNewUser);
+      await assignInitialProfileIfNeeded(user);
+      
       const name = user?.displayName?.split(" ")[0] || user?.email?.split("@")[0] || "User";
       await AsyncStorage.setItem(WELCOME_BANNER_KEY, name);
+      
+      if (__DEV__) {
+        console.log("[GoogleSignIn] ✓ Sign-in successful for user:", user?.email);
+      }
     } catch (error: any) {
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
-      if (error.code === statusCodes.IN_PROGRESS) { showDialog("In Progress", "A sign-in attempt is already underway."); return; }
-      if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) { showDialog("Google Play Required", "Google Play Services are not available."); return; }
+      if (__DEV__) {
+        console.error("[GoogleSignIn] SIGN-IN ERROR", {
+          errorCode: error?.code,
+          errorMessage: error?.message,
+          errorFullObject: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+        });
+      }
+      
+      if (error.code === googleSignInModule.statusCodes.SIGN_IN_CANCELLED) {
+        if (__DEV__) {
+          console.log("[GoogleSignIn] Sign-in cancelled by user");
+        }
+        return;
+      }
+      if (error.code === googleSignInModule.statusCodes.IN_PROGRESS) { 
+        showDialog("In Progress", "A sign-in attempt is already underway."); 
+        return; 
+      }
+      if (error.code === googleSignInModule.statusCodes.PLAY_SERVICES_NOT_AVAILABLE) { 
+        showDialog("Google Play Required", "Google Play Services are not available."); 
+        return; 
+      }
+      
+      // Additional debugging for DEVELOPER_ERROR
+      if (error.code === 10 || error.message?.includes("DEVELOPER_ERROR")) {
+        if (__DEV__) {
+          console.error("[GoogleSignIn] DEVELOPER_ERROR (code 10) - This typically means:", {
+            checkList: [
+              "1. Verify webClientId is correct (Web OAuth 2.0 Client ID, not Android)",
+              "2. Ensure SHA1 fingerprint in firebase-console matches app",
+              "3. Check Firebase Authentication has Google provider enabled",
+              "4. Verify google-services.json is up to date",
+              "5. Confirm offlineAccess is set to false",
+              "6. Try clearing app data and rebuilding",
+            ],
+            currentWebClientId: googleWebClientId ? googleWebClientId.substring(0, 30) + "..." : "NOT SET",
+          });
+        }
+      }
+      
       showDialog("Sign-In Failed", error.message || "Something went wrong.");
     } finally { setGoogleLoading(false); }
   };
 
   const handleEmailLogin = async () => {
     if (loading) return;
+    const currentAuth = auth;
+    if (!currentAuth) { showDialog("Unavailable", "Firebase is not configured yet."); return; }
     if (!email || !password) { showDialog("Missing Details", "Please enter your email and password."); return; }
     if (password.length < 6) { showDialog("Password Too Short", "Password must be at least 6 characters."); return; }
     setLoading(true);
     try {
       const trimmedEmail = email.trim();
       try {
-        await signInWithEmailAndPassword(auth, trimmedEmail, password);
-        const user = auth.currentUser as any;
+        await signInWithEmailAndPassword(currentAuth, trimmedEmail, password);
+        const user = currentAuth.currentUser as any;
+        console.log("[handleEmailLogin] Sign-in successful, uid:", user.uid);
+        await assignInitialProfileIfNeeded(user);
         await AsyncStorage.setItem(WELCOME_BANNER_KEY, user?.displayName?.split(" ")[0] || "User");
         return;
       } catch (loginError: any) {
@@ -98,8 +287,9 @@ export default function AuthChoiceScreen() {
             showDialog("Gmail Only", "Samay currently supports Gmail accounts."); return;
           }
           try {
-            const signupResult = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+            const signupResult = await createUserWithEmailAndPassword(currentAuth, trimmedEmail, password);
             const user = signupResult.user as any;
+            console.log("[handleEmailLogin] Sign-up successful, uid:", user.uid);
             await assignInitialProfileIfNeeded(user);
             await AsyncStorage.setItem(WELCOME_BANNER_KEY, user?.displayName?.split(" ")[0] || "User");
             return;
@@ -119,9 +309,11 @@ export default function AuthChoiceScreen() {
   };
 
   const handleForgotPassword = async () => {
+    const currentAuth = auth;
+    if (!currentAuth) { showDialog("Unavailable", "Firebase is not configured yet."); return; }
     if (!email) { showDialog("Enter Your Email", "Type your email above, then tap Forgot Password again."); return; }
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      await sendPasswordResetEmail(currentAuth, email.trim());
       showDialog("Reset Link Sent", "Check your inbox for a password reset link.", [{ text: "OK", style: "default", onPress: hideDialog }]);
     } catch (err: any) {
       showDialog("Could Not Send", err.message || "Failed to send the reset link.");

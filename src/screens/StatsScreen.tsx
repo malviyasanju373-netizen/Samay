@@ -31,22 +31,31 @@ function categoryBreakdown(sessions: FocusSession[]): { categoryId: string; minu
 
 export default function StatsScreen() {
   const { theme } = useTheme();
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   const s = createStyles(theme);
 
   const [weeklyMinutes, setWeeklyMinutes] = useState<number[]>(Array(7).fill(0));
   const [breakdown, setBreakdown] = useState<{ categoryId: string; minutes: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!user) return;
-    const [weekly, sessions] = await Promise.all([
-      getWeeklyMinutes(user.uid),
-      getRecentSessions(user.uid, 100),
-    ]);
-    setWeeklyMinutes(weekly);
-    setBreakdown(categoryBreakdown(sessions));
+    if (!user) {
+      setError("Sign in to view stats.");
+      return;
+    }
+    try {
+      setError(null);
+      const [weekly, sessions] = await Promise.all([
+        getWeeklyMinutes(user.uid),
+        getRecentSessions(user.uid, 100),
+      ]);
+      setWeeklyMinutes(weekly);
+      setBreakdown(categoryBreakdown(sessions));
+    } catch (err: any) {
+      setError(err?.message ?? "Could not load stats.");
+    }
   }, [user]);
 
   useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
@@ -77,6 +86,7 @@ export default function StatsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
       >
         <Text style={s.pageTitle}>Stats</Text>
+        {error ? <Text style={s.errorText}>{error}</Text> : null}
 
         {/* Weekly summary */}
         <View style={s.summaryRow}>
@@ -147,6 +157,7 @@ function createStyles(theme: any) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.background },
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
+    errorText: { color: theme.colors.error, fontSize: 13, fontWeight: "600", marginBottom: 12 },
     scroll: { paddingHorizontal: 16, paddingTop: 16 },
     pageTitle: { fontSize: 24, fontWeight: "800", color: theme.colors.text, marginBottom: 16 },
     summaryRow: { flexDirection: "row", gap: 10, marginBottom: 16 },

@@ -1,18 +1,28 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, onIdTokenChanged, User } from "firebase/auth";
-import { auth } from "@/firebase";
+import { auth, firebaseInitError } from "@/firebase";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth) {
+      if (firebaseInitError) console.warn("[useAuth] Firebase unavailable:", firebaseInitError);
+      console.log("[useAuth] auth is null, setting user to null");
+      setUser(null);
+      setLoading(false);
+      return;
+    }
     console.log('[useAuth] subscribing to auth state');
     let unsubAuth: () => void;
     let unsubToken: () => void;
     try {
       unsubAuth = onAuthStateChanged(auth, (u) => {
-        console.log('[useAuth] onAuthStateChanged — user:', u?.uid ?? 'null');
+        console.log('[useAuth] onAuthStateChanged — uid:', u?.uid ?? 'null');
+        if (u?.uid) {
+          console.log('[useAuth] User authenticated - uid:', u.uid);
+        }
         setUser(u ? { ...u } : null);
         setLoading(false);
       }, (err) => {
@@ -20,8 +30,7 @@ export function useAuth() {
         setLoading(false);
       });
       unsubToken = onIdTokenChanged(auth, (u) => {
-        console.log('[useAuth] onIdTokenChanged — user:', u?.uid ?? 'null');
-        setUser(u ? { ...u } : null);
+        console.log('[useAuth] onIdTokenChanged — uid:', u?.uid ?? 'null');
       }, (err) => {
         console.error('[useAuth] onIdTokenChanged error:', err?.message);
       });

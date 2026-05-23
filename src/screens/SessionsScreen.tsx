@@ -42,17 +42,26 @@ function groupByDate(sessions: FocusSession[]): { date: string; items: FocusSess
 
 export default function SessionsScreen() {
   const { theme } = useTheme();
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   const s = createStyles(theme);
 
   const [sessions, setSessions] = useState<FocusSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!user) return;
-    const data = await getRecentSessions(user.uid, 50);
-    setSessions(data);
+    if (!user) {
+      setError("Sign in to view sessions.");
+      return;
+    }
+    try {
+      setError(null);
+      const data = await getRecentSessions(user.uid, 50);
+      setSessions(data);
+    } catch (err: any) {
+      setError(err?.message ?? "Could not load sessions.");
+    }
   }, [user]);
 
   useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
@@ -91,6 +100,7 @@ export default function SessionsScreen() {
             <Text style={s.emptySubtext}>Start your first focus session</Text>
           </View>
         )}
+        {error ? <Text style={s.errorText}>{error}</Text> : null}
         {groups.map(({ date, items }) => (
           <View key={date}>
             <Text style={s.dateHeader}>{date}</Text>
@@ -134,6 +144,7 @@ function createStyles(theme: any) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.background },
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
+    errorText: { color: theme.colors.error, fontSize: 13, fontWeight: "600", textAlign: "center", marginTop: 12 },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
     headerTitle: { fontSize: 24, fontWeight: "800", color: theme.colors.text },
     headerCount: { fontSize: 14, fontWeight: "700", color: theme.colors.textTertiary, backgroundColor: theme.colors.card, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },

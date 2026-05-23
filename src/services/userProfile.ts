@@ -1,7 +1,7 @@
 import {
   doc, getDoc, setDoc, runTransaction, serverTimestamp, Timestamp,
 } from "firebase/firestore";
-import { db } from "@/firebase";
+import { requireFirestore } from "@/firebase";
 
 export type UserProfile = {
   uid: string;
@@ -41,6 +41,7 @@ function generateCandidateUsername(): string {
 }
 
 async function generateUniqueUsername(): Promise<string> {
+  const db = requireFirestore();
   for (let attempt = 0; attempt < 20; attempt++) {
     const candidate = generateCandidateUsername();
     const snap = await getDoc(doc(db, "usernames", candidate.toLowerCase()));
@@ -50,6 +51,7 @@ async function generateUniqueUsername(): Promise<string> {
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  const db = requireFirestore();
   const snap = await getDoc(doc(db, "userProfiles", uid));
   if (!snap.exists()) return null;
   return { uid, ...snap.data() } as UserProfile;
@@ -59,9 +61,14 @@ export async function createInitialUserProfile(
   uid: string,
   fallback: { displayName?: string | null; email?: string | null; photoURL?: string | null }
 ): Promise<UserProfile> {
+  const db = requireFirestore();
+  console.log("[createInitialUserProfile] Starting for uid:", uid);
   const profileRef = doc(db, "userProfiles", uid);
   const snap = await getDoc(profileRef);
-  if (snap.exists()) return { uid, ...snap.data() } as UserProfile;
+  if (snap.exists()) {
+    console.log("[createInitialUserProfile] Profile already exists for uid:", uid);
+    return { uid, ...snap.data() } as UserProfile;
+  }
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const username = await generateUniqueUsername();
@@ -78,24 +85,34 @@ export async function createInitialUserProfile(
     };
 
     try {
+      console.log("[createInitialUserProfile] Attempt", attempt + 1, "- Creating profile for uid:", uid, "with username:", username);
       await runTransaction(db, async (tx) => {
         const profileSnap = await tx.get(profileRef);
-        if (profileSnap.exists()) return;
+        if (profileSnap.exists()) {
+          console.log("[createInitialUserProfile] Profile already exists during transaction for uid:", uid);
+          return;
+        }
         const reservationSnap = await tx.get(doc(db, "usernames", reservationKey));
         if (reservationSnap.exists()) throw new Error("collision");
         tx.set(profileRef, profile);
+        console.log("[createInitialUserProfile] Set profile for uid:", uid);
         tx.set(doc(db, "usernames", reservationKey), { uid });
-        tx.set(doc(db, "users", uid), { totalFocusMinutes: 0 }, { merge: true });
+        console.log("[createInitialUserProfile] Reserved username:", username);
+        tx.set(doc(db, "users", uid), { totalFocusMinutes: 0, displayName: profile.displayName || "Anonymous" }, { merge: true });
+        console.log("[createInitialUserProfile] Created users doc with displayName:", profile.displayName || "Anonymous", "for uid:", uid);
       });
       const final = await getDoc(profileRef);
+      console.log("[createInitialUserProfile] Successfully created profile for uid:", uid);
       return { uid, ...final.data() } as UserProfile;
     } catch (err: any) {
+      console.warn("[createInitialUserProfile] Attempt", attempt + 1, "failed - uid:", uid, "error:", err?.message);
       if (err?.code === "already-exists") {
         const existing = await getDoc(profileRef);
         if (existing.exists()) return { uid, ...existing.data() } as UserProfile;
         if (attempt < 2) continue;
       }
       if (err?.message === "collision" && attempt < 2) continue;
+      console.error("[createInitialUserProfile] Final error for uid:", uid, "error:", err?.message);
       throw err;
     }
   }
@@ -110,6 +127,7 @@ export async function ensureUserProfile(
   if (existing) return existing;
 
   const request = (async () => {
+    const db = requireFirestore();
     const profileRef = doc(db, "userProfiles", uid);
     const snap = await getDoc(profileRef);
     if (!snap.exists()) return createInitialUserProfile(uid, fallback);
@@ -125,6 +143,7 @@ export async function ensureUserProfile(
 }
 
 export async function isUsernameAvailable(username: string): Promise<boolean> {
+  const db = requireFirestore();
   const snap = await getDoc(doc(db, "usernames", username.toLowerCase()));
   return !snap.exists();
 }
@@ -134,6 +153,7 @@ export type UsernameChangeResult =
   | { ok: false; reason: "taken" | "cooldown" | "same" | "invalid" };
 
 export async function changeUsername(uid: string, newUsername: string): Promise<UsernameChangeResult> {
+  const db = requireFirestore();
   const trimmed = newUsername.trim();
   if (trimmed.length < 3) return { ok: false, reason: "invalid" };
 
@@ -177,10 +197,12 @@ export async function changeUsername(uid: string, newUsername: string): Promise<
 }
 
 export async function updateDisplayName(uid: string, displayName: string): Promise<void> {
+  const db = requireFirestore();
   await setDoc(doc(db, "userProfiles", uid), { displayName }, { merge: true });
 }
 
 export async function updateGoal(uid: string, goal: string): Promise<void> {
+  const db = requireFirestore();
   await setDoc(doc(db, "userProfiles", uid), { goal }, { merge: true });
 }
 

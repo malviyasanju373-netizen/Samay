@@ -6,10 +6,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useTheme } from "@/context/ThemeContext";
-import { auth } from "@/firebase";
+import { auth, db } from "@/firebase";
 import { getTodayMinutes, getRecentSessions } from "@/services/sessions";
 import { getDoc, doc } from "firebase/firestore";
-import { db } from "@/firebase";
 import { FocusSession, CATEGORIES } from "@/types/session";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -35,7 +34,7 @@ function sessionDateLabel(session: FocusSession) {
 
 export default function HomeScreen({ navigation }: any) {
   const { theme } = useTheme();
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   const s = createStyles(theme);
 
   const [todayMinutes, setTodayMinutes] = useState(0);
@@ -44,17 +43,26 @@ export default function HomeScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!user) return;
-    const [today, sessions, userSnap] = await Promise.all([
-      getTodayMinutes(user.uid),
-      getRecentSessions(user.uid, 5),
-      getDoc(doc(db, "users", user.uid)),
-    ]);
-    setTodayMinutes(today);
-    setRecentSessions(sessions);
-    if (userSnap.exists()) setTotalMinutes(userSnap.data().totalFocusMinutes ?? 0);
+    if (!user || !db) {
+      setError("Sign in to load your focus dashboard.");
+      return;
+    }
+    try {
+      setError(null);
+      const [today, sessions, userSnap] = await Promise.all([
+        getTodayMinutes(user.uid),
+        getRecentSessions(user.uid, 5),
+        getDoc(doc(db, "users", user.uid)),
+      ]);
+      setTodayMinutes(today);
+      setRecentSessions(sessions);
+      if (userSnap.exists()) setTotalMinutes(userSnap.data().totalFocusMinutes ?? 0);
+    } catch (err: any) {
+      setError(err?.message ?? "Could not refresh your focus data.");
+    }
   }, [user]);
 
   useEffect(() => {
@@ -97,6 +105,7 @@ export default function HomeScreen({ navigation }: any) {
         </View>
 
         {/* Today's focus — big hero stat */}
+        {error ? <Text style={s.errorText}>{error}</Text> : null}
         <TouchableOpacity onPress={() => navigation.navigate("Timer")} style={s.heroCard} activeOpacity={0.9}>
           <View style={s.heroInner}>
             <Text style={s.heroTime}>{formatHMS(todayMinutes)}</Text>
@@ -118,7 +127,7 @@ export default function HomeScreen({ navigation }: any) {
             <Text style={s.miniLabel}>Total</Text>
           </View>
           <TouchableOpacity style={s.miniCard} onPress={() => navigation.navigate("Leaderboard")} activeOpacity={0.8}>
-            <Ionicons name="trophy-outline" size={22} color={theme.colors.coinGoldA ?? "#FFD700"} />
+            <Ionicons name="trophy-outline" size={22} color={"#FFD700"} />
             <Text style={s.miniValue}>Top 10</Text>
             <Text style={s.miniLabel}>Board</Text>
           </TouchableOpacity>
@@ -182,6 +191,7 @@ function createStyles(theme: any) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.background },
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
+    errorText: { color: theme.colors.error, fontSize: 13, fontWeight: "600", marginBottom: 12 },
     scroll: { paddingHorizontal: 16, paddingTop: 16 },
     topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
     greeting: { fontSize: 22, fontWeight: "800", color: theme.colors.text },

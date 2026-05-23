@@ -17,7 +17,7 @@ export default function DeleteAccountScreen({ navigation }: any) {
   const handleDelete = async () => {
     const result = await deleteAccountWithPassword(password);
     if (!result.success) return;
-    navigation.reset({ index: 0, routes: [{ name: "AuthChoice" }] });
+    navigation.goBack();
   };
 
   return (

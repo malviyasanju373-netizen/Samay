@@ -6,30 +6,35 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useTheme } from "@/context/ThemeContext";
-import { auth } from "@/firebase";
+import { auth, db } from "@/firebase";
 import { doc, addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { db } from "@/firebase";
 
 export default function GeneralFeedbackScreen({ navigation }: any) {
   const { theme } = useTheme();
   const [feedback, setFeedback] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
   const s = createStyles(theme);
 
   const handleSend = async () => {
     if (!feedback.trim() || sending) return;
+    if (!db) {
+      setError("Feedback is unavailable until Firebase is configured.");
+      return;
+    }
     setSending(true);
+    setError("");
     try {
       await addDoc(collection(db, "feedback"), {
-        uid: auth.currentUser?.uid ?? null,
+        uid: auth?.currentUser?.uid ?? null,
         message: feedback.trim(),
         createdAt: serverTimestamp(),
         app: "samay",
       });
       setSent(true);
-    } catch (err) {
-      // Silently fail — offline feedback can be lost
+    } catch (err: any) {
+      setError(err?.message ?? "Could not send feedback. Please try again.");
     } finally { setSending(false); }
   };
 
@@ -67,6 +72,7 @@ export default function GeneralFeedbackScreen({ navigation }: any) {
                 editable={!sending}
                 textAlignVertical="top"
               />
+              {error ? <Text style={s.errorText}>{error}</Text> : null}
               <TouchableOpacity onPress={handleSend} disabled={sending || !feedback.trim()} style={[s.sendBtn, (sending || !feedback.trim()) && { opacity: 0.5 }]} activeOpacity={0.8}>
                 {sending ? <ActivityIndicator color="#fff" /> : <Text style={s.sendBtnText}>Send Feedback</Text>}
               </TouchableOpacity>
@@ -87,6 +93,7 @@ function createStyles(theme: any) {
     content: { padding: 20 },
     label: { fontSize: 14, fontWeight: "600", color: theme.colors.textSecondary, marginBottom: 10 },
     input: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 14, color: theme.colors.text, minHeight: 140, marginBottom: 16 },
+    errorText: { color: theme.colors.error, fontSize: 13, fontWeight: "600", marginBottom: 12 },
     sendBtn: { backgroundColor: theme.colors.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
     sendBtnText: { fontSize: 15, fontWeight: "700", color: theme.colors.textInverse },
     sentBox: { alignItems: "center", paddingTop: 60 },

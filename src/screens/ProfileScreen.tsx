@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { signOut, updateProfile } from "firebase/auth";
-import { auth } from "@/firebase";
+import { auth, db } from "@/firebase";
 import { useTheme } from "@/context/ThemeContext";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,7 +14,6 @@ import {
   changeUsername, cooldownDaysRemaining, updateDisplayName, updateGoal,
 } from "@/services/userProfile";
 import { getDoc, doc } from "firebase/firestore";
-import { db } from "@/firebase";
 import AppDialog, { AppDialogButton } from "@/components/AppDialog";
 
 const AVATAR_KEY = "LOCAL_PROFILE_PHOTO";
@@ -37,7 +36,7 @@ type DialogState = { title: string; message: string; buttons?: AppDialogButton[]
 
 export default function ProfileScreen({ navigation }: any) {
   const { theme, themeMode, setThemeMode } = useTheme();
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   const { profile, loading: profileLoading, reload: reloadProfile } = useUserProfile();
 
   const [photoUri, setPhotoUri] = useState<string | null>(user?.photoURL ?? null);
@@ -60,7 +59,7 @@ export default function ProfileScreen({ navigation }: any) {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !db) return;
     getDoc(doc(db, "users", user.uid)).then((snap) => {
       if (snap.exists()) setTotalMinutes(snap.data().totalFocusMinutes ?? 0);
     }).catch(() => {});
@@ -89,9 +88,10 @@ export default function ProfileScreen({ navigation }: any) {
 
   const handleSaveName = async () => {
     if (!editingName.trim()) return;
+    if (!user) { showDialog("Unavailable", "No signed-in user found."); return; }
     try {
-      await updateProfile(user!, { displayName: editingName.trim() });
-      await updateDisplayName(user!.uid, editingName.trim());
+      await updateProfile(user, { displayName: editingName.trim() });
+      await updateDisplayName(user.uid, editingName.trim());
       setIsEditingName(false);
       await reloadProfile();
     } catch (err: any) { showDialog("Error", err.message); }
@@ -100,19 +100,24 @@ export default function ProfileScreen({ navigation }: any) {
   const handleSaveUsername = async () => {
     if (!editingUsername.trim() || !user) return;
     setUsernameLoading(true);
-    const result = await changeUsername(user.uid, editingUsername.trim());
-    setUsernameLoading(false);
-    if (result.ok) {
-      setIsEditingUsername(false);
-      await reloadProfile();
-    } else {
-      const msgs: Record<string, string> = {
-        taken: "That username is already taken.",
-        cooldown: `You can change username again in ${cooldownDaysRemaining(profile?.usernameLastChanged ?? null)} days.`,
-        same: "That's already your username.",
-        invalid: "Username must be at least 3 characters.",
-      };
-      showDialog("Can't Change", msgs[result.reason] ?? "Something went wrong.");
+    try {
+      const result = await changeUsername(user.uid, editingUsername.trim());
+      if (result.ok) {
+        setIsEditingUsername(false);
+        await reloadProfile();
+      } else {
+        const msgs: Record<string, string> = {
+          taken: "That username is already taken.",
+          cooldown: `You can change username again in ${cooldownDaysRemaining(profile?.usernameLastChanged ?? null)} days.`,
+          same: "That's already your username.",
+          invalid: "Username must be at least 3 characters.",
+        };
+        showDialog("Can't Change", msgs[result.reason] ?? "Something went wrong.");
+      }
+    } catch (err: any) {
+      showDialog("Error", err?.message ?? "Could not update username.");
+    } finally {
+      setUsernameLoading(false);
     }
   };
 
@@ -130,7 +135,7 @@ export default function ProfileScreen({ navigation }: any) {
   const handleSignOut = () => {
     showDialog("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel", onPress: hideDialog },
-      { text: "Sign Out", style: "destructive", onPress: async () => { hideDialog(); await signOut(auth); } },
+      { text: "Sign Out", style: "destructive", onPress: async () => { hideDialog(); if (auth) await signOut(auth); } },
     ]);
   };
 

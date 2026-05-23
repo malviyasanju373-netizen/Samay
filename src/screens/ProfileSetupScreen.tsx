@@ -32,7 +32,7 @@ export default function ProfileSetupScreen({ navigation }: any) {
     }
     try {
       setSaving(true);
-      const user = auth.currentUser;
+      const user = auth?.currentUser;
       if (!user) return;
       await updateProfile(user, { displayName: name.trim() });
       await AsyncStorage.setItem(TERMS_ACCEPTED_AT_KEY, new Date().toISOString());

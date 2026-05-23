@@ -12,6 +12,9 @@ import SessionsScreen from "@/screens/SessionsScreen";
 import StatsScreen    from "@/screens/StatsScreen";
 import ProfileScreen  from "@/screens/ProfileScreen";
 import LeaderboardScreen    from "@/screens/LeaderboardScreen";
+import GroupsListScreen     from "@/screens/GroupsListScreen";
+import CreateGroupScreen    from "@/screens/CreateGroupScreen";
+import GroupDetailScreen    from "@/screens/GroupDetailScreen";
 import AccountScreen        from "@/screens/AccountScreen";
 import DeleteAccountScreen  from "@/screens/DeleteAccountScreen";
 import PrivacyPolicyScreen  from "@/screens/PrivacyPolicyScreen";
@@ -48,11 +51,17 @@ function TabNavigator() {
           borderTopWidth: 1,
           height: tabBarHeight,
           paddingBottom: bottomInset,
-          paddingTop: landscape ? 2 : 4,
+          paddingTop: landscape ? 3 : 6,
+          elevation: theme.isDark ? 0 : 12,
+          shadowColor: "#000",
+          shadowOpacity: theme.isDark ? 0 : 0.08,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: -4 },
         },
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textSecondary,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "600" },
+        tabBarItemStyle: { borderRadius: 18, marginHorizontal: 4 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", paddingTop: 1 },
       }}
     >
       <Tab.Screen
@@ -61,7 +70,7 @@ function TabNavigator() {
         options={{
           tabBarLabel: "Home",
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? "home" : "home-outline"} size={focused ? 24 : 22} color={color} />
+            <Ionicons name={focused ? "home" : "home-outline"} size={focused ? 25 : 22} color={color} />
           ),
         }}
       />
@@ -71,7 +80,7 @@ function TabNavigator() {
         options={{
           tabBarLabel: "Focus",
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? "timer" : "timer-outline"} size={focused ? 24 : 22} color={color} />
+            <Ionicons name={focused ? "timer" : "timer-outline"} size={focused ? 25 : 22} color={color} />
           ),
         }}
       />
@@ -81,7 +90,7 @@ function TabNavigator() {
         options={{
           tabBarLabel: "Sessions",
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? "list" : "list-outline"} size={focused ? 24 : 22} color={color} />
+            <Ionicons name={focused ? "list" : "list-outline"} size={focused ? 25 : 22} color={color} />
           ),
         }}
       />
@@ -91,7 +100,17 @@ function TabNavigator() {
         options={{
           tabBarLabel: "Stats",
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? "bar-chart" : "bar-chart-outline"} size={focused ? 24 : 22} color={color} />
+            <Ionicons name={focused ? "bar-chart" : "bar-chart-outline"} size={focused ? 25 : 22} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Groups"
+        component={GroupsListScreen}
+        options={{
+          tabBarLabel: "Groups",
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? "people" : "people-outline"} size={focused ? 25 : 22} color={color} />
           ),
         }}
       />
@@ -101,7 +120,7 @@ function TabNavigator() {
         options={{
           tabBarLabel: "Profile",
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? "person" : "person-outline"} size={focused ? 24 : 22} color={color} />
+            <Ionicons name={focused ? "person" : "person-outline"} size={focused ? 25 : 22} color={color} />
           ),
         }}
       />
@@ -114,6 +133,9 @@ export default function RootNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={TabNavigator} />
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ presentation: "modal" }} />
+      <Stack.Screen name="GroupsList" component={GroupsListScreen} options={{ presentation: "modal" }} />
+      <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
+      <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
       <Stack.Screen name="Profile"     component={ProfileScreen} options={{ presentation: "modal" }} />
       <Stack.Screen name="Account"     component={AccountScreen} />
       <Stack.Screen name="DeleteAccount"    component={DeleteAccountScreen} />
