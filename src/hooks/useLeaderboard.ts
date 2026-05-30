@@ -52,7 +52,7 @@ export function useLeaderboard() {
       const time = await getCachedFetchTime();
       setFetchedAt(time);
       setError(null);
-    } catch (err) {
+    } catch (err: any) {
       setError("Could not refresh leaderboard.");
       console.error("[useLeaderboard] Refresh error:", err?.message || String(err));
     } finally {

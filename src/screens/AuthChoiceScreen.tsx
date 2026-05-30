@@ -4,11 +4,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
-import {
-  signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  sendPasswordResetEmail, GoogleAuthProvider, signInWithCredential,
-  getAdditionalUserInfo,
-} from "firebase/auth";
+import type {
+  FirebaseAuthTypes,
+} from "@react-native-firebase/auth";
 import { auth } from "@/firebase";
 import { useTheme } from "@/context/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -128,8 +126,6 @@ export default function AuthChoiceScreen() {
   }, []);
 
   const handleGoogleLogin = async () => {
-    const currentAuth = auth;
-    if (!currentAuth) { showDialog("Unavailable", "Firebase is not configured yet."); return; }
     if (!googleSignInModule || !googleConfigured) { 
       if (__DEV__) {
         console.warn("[GoogleSignIn] Cannot proceed with login:", {
@@ -141,7 +137,7 @@ export default function AuthChoiceScreen() {
       showDialog("Unavailable", "Google Sign-In is not configured yet. Please check your .env file and ensure EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is set.");
       return;
     }
-    if (currentAuth.currentUser) { showDialog("Already Signed In", "You have an active session."); return; }
+    if (auth().currentUser) { showDialog("Already Signed In", "You have an active session."); return; }
     
     if (__DEV__) {
       console.log("[GoogleSignIn] Starting sign-in process...");
@@ -192,25 +188,28 @@ export default function AuthChoiceScreen() {
         console.log("[GoogleSignIn] Creating Firebase credential...");
       }
       
-      const credential = GoogleAuthProvider.credential(idToken);
+      const credential = auth.GoogleAuthProvider.credential(idToken);
       
       if (__DEV__) {
         console.log("[GoogleSignIn] ✓ Credential created, signing in to Firebase...");
       }
       
-      const result = await signInWithCredential(currentAuth, credential);
-      const user = result.user as any;
+      const result = await auth().signInWithCredential(credential);
+      const user = result.user;
+      const additionalUserInfo = (result as FirebaseAuthTypes.UserCredential & {
+        additionalUserInfo?: { isNewUser?: boolean };
+      }).additionalUserInfo;
       
       if (__DEV__) {
         console.log("[GoogleSignIn] ✓ Firebase sign-in successful", {
           uid: user.uid ? user.uid.substring(0, 8) + "..." : "N/A",
           email: user.email,
-          isNewUser: getAdditionalUserInfo(result)?.isNewUser,
+          isNewUser: additionalUserInfo?.isNewUser,
         });
       }
       
       // Always ensure profile exists (not just for new users)
-      const isNewUser = getAdditionalUserInfo(result)?.isNewUser;
+      const isNewUser = additionalUserInfo?.isNewUser;
       console.log("[GoogleSignIn] Auth uid:", user.uid, "isNewUser:", isNewUser);
       await assignInitialProfileIfNeeded(user);
       
@@ -267,16 +266,15 @@ export default function AuthChoiceScreen() {
 
   const handleEmailLogin = async () => {
     if (loading) return;
-    const currentAuth = auth;
-    if (!currentAuth) { showDialog("Unavailable", "Firebase is not configured yet."); return; }
     if (!email || !password) { showDialog("Missing Details", "Please enter your email and password."); return; }
     if (password.length < 6) { showDialog("Password Too Short", "Password must be at least 6 characters."); return; }
     setLoading(true);
     try {
       const trimmedEmail = email.trim();
       try {
-        await signInWithEmailAndPassword(currentAuth, trimmedEmail, password);
-        const user = currentAuth.currentUser as any;
+        await auth().signInWithEmailAndPassword(trimmedEmail, password);
+        const user = auth().currentUser;
+        if (!user) throw new Error("Signed in, but no user session was returned.");
         console.log("[handleEmailLogin] Sign-in successful, uid:", user.uid);
         await assignInitialProfileIfNeeded(user);
         await AsyncStorage.setItem(WELCOME_BANNER_KEY, user?.displayName?.split(" ")[0] || "User");
@@ -287,8 +285,8 @@ export default function AuthChoiceScreen() {
             showDialog("Gmail Only", "Samay currently supports Gmail accounts."); return;
           }
           try {
-            const signupResult = await createUserWithEmailAndPassword(currentAuth, trimmedEmail, password);
-            const user = signupResult.user as any;
+            const signupResult = await auth().createUserWithEmailAndPassword(trimmedEmail, password);
+            const user = signupResult.user;
             console.log("[handleEmailLogin] Sign-up successful, uid:", user.uid);
             await assignInitialProfileIfNeeded(user);
             await AsyncStorage.setItem(WELCOME_BANNER_KEY, user?.displayName?.split(" ")[0] || "User");
@@ -309,11 +307,9 @@ export default function AuthChoiceScreen() {
   };
 
   const handleForgotPassword = async () => {
-    const currentAuth = auth;
-    if (!currentAuth) { showDialog("Unavailable", "Firebase is not configured yet."); return; }
     if (!email) { showDialog("Enter Your Email", "Type your email above, then tap Forgot Password again."); return; }
     try {
-      await sendPasswordResetEmail(currentAuth, email.trim());
+      await auth().sendPasswordResetEmail(email.trim());
       showDialog("Reset Link Sent", "Check your inbox for a password reset link.", [{ text: "OK", style: "default", onPress: hideDialog }]);
     } catch (err: any) {
       showDialog("Could Not Send", err.message || "Failed to send the reset link.");

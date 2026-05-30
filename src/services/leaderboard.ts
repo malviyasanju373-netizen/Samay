@@ -1,7 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  collection, getDocs, getDoc, doc, orderBy, limit, query, onSnapshot, Unsubscribe, updateDoc,
-} from "firebase/firestore";
+import type { FirebaseFirestoreTypes } from "@react-native-firebase/firestore";
 import { requireFirestore } from "@/firebase";
 
 export type LeaderboardEntry = {
@@ -16,34 +14,29 @@ type Cache = { data: LeaderboardEntry[]; fetchedAt: number };
 const CACHE_KEY = "samay_leaderboard_v1";
 const CACHE_TTL_MS = 60 * 60 * 1000;
 
-async function buildLeaderboardEntries(docs: any[]): Promise<LeaderboardEntry[]> {
+async function buildLeaderboardEntries(
+  docs: FirebaseFirestoreTypes.QueryDocumentSnapshot[]
+): Promise<LeaderboardEntry[]> {
   const db = requireFirestore();
   return Promise.all(
     docs.map(async (d, i) => {
-      const totalFocusMinutes: number =
-        typeof d.data().totalFocusMinutes === "number" ? d.data().totalFocusMinutes : 0;
-      let displayName = d.data().displayName || "Anonymous";
-      
-      // If displayName is missing, try to backfill from userProfiles
-      if (!d.data().displayName) {
+      const data = d.data();
+      const totalFocusMinutes = typeof data.totalFocusMinutes === "number" ? data.totalFocusMinutes : 0;
+      let displayName = data.displayName || "Anonymous";
+
+      if (!data.displayName) {
         try {
-          const profileSnap = await getDoc(doc(db, "userProfiles", d.id));
-          if (profileSnap.exists() && profileSnap.data().displayName) {
-            displayName = profileSnap.data().displayName;
-            // Silently update users doc with displayName for future queries
-            try {
-              await updateDoc(doc(db, "users", d.id), { displayName });
-              console.log("[buildLeaderboardEntries] Updated missing displayName for uid:", d.id);
-            } catch (updateErr: any) {
-              console.warn("[buildLeaderboardEntries] Could not update displayName for uid:", d.id);
-            }
+          const profileSnap = await db.collection("userProfiles").doc(d.id).get();
+          const profile = profileSnap.data();
+          if (profileSnap.exists() && profile?.displayName) {
+            displayName = profile.displayName;
+            await db.collection("users").doc(d.id).update({ displayName });
           }
-        } catch (err) {
-          console.warn("[buildLeaderboardEntries] Could not fetch profile for uid:", d.id);
+        } catch {
+          console.warn("[buildLeaderboardEntries] Could not backfill displayName for uid:", d.id);
         }
       }
-      
-      console.log("[buildLeaderboardEntries] uid:", d.id, "displayName:", displayName, "minutes:", totalFocusMinutes);
+
       return { uid: d.id, displayName, totalFocusMinutes, rank: i + 1 };
     })
   );
@@ -55,33 +48,24 @@ export async function getLeaderboard(forceRefresh = false): Promise<LeaderboardE
       const raw = await AsyncStorage.getItem(CACHE_KEY);
       if (raw) {
         const cache: Cache = JSON.parse(raw);
-        if (Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
-          console.log("[getLeaderboard] Using cached data, entries:", cache.data.length);
-          return cache.data;
-        }
+        if (Date.now() - cache.fetchedAt < CACHE_TTL_MS) return cache.data;
       }
     } catch {}
   }
 
+  const db = requireFirestore();
+  const snap = await db
+    .collection("users")
+    .orderBy("totalFocusMinutes", "desc")
+    .limit(10)
+    .get();
+  const entries = await buildLeaderboardEntries(snap.docs);
+
   try {
-    const db = requireFirestore();
-    const q = query(collection(db, "users"), orderBy("totalFocusMinutes", "desc"), limit(10));
-    console.log("[getLeaderboard] Querying users collection...");
-    const snap = await getDocs(q);
-    console.log("[getLeaderboard] Query returned", snap.docs.length, "users");
+    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data: entries, fetchedAt: Date.now() }));
+  } catch {}
 
-    const entries = await buildLeaderboardEntries(snap.docs);
-    console.log("[getLeaderboard] Built leaderboard entries:", entries.map(e => ({ uid: e.uid, minutes: e.totalFocusMinutes, rank: e.rank })));
-
-    try {
-      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data: entries, fetchedAt: Date.now() }));
-    } catch {}
-
-    return entries;
-  } catch (error: any) {
-    console.error("[getLeaderboard] Error fetching leaderboard:", error?.code || error?.message);
-    throw error;
-  }
+  return entries;
 }
 
 export async function getCachedFetchTime(): Promise<number | null> {
@@ -95,30 +79,24 @@ export async function getCachedFetchTime(): Promise<number | null> {
 export function subscribeToLeaderboard(
   onUpdate: (entries: LeaderboardEntry[]) => void,
   onError?: (error: Error) => void
-): Unsubscribe {
+): () => void {
   const db = requireFirestore();
-  const q = query(collection(db, "users"), orderBy("totalFocusMinutes", "desc"), limit(10));
-  console.log("[subscribeToLeaderboard] Setting up realtime listener...");
-
-  return onSnapshot(
-    q,
-    async (snap) => {
-      try {
-        console.log("[subscribeToLeaderboard] Snapshot received, doc count:", snap.docs.length);
-        const entries = await buildLeaderboardEntries(snap.docs);
-        console.log("[subscribeToLeaderboard] Built entries:", entries.map(e => ({ uid: e.uid, minutes: e.totalFocusMinutes, rank: e.rank })));
+  return db
+    .collection("users")
+    .orderBy("totalFocusMinutes", "desc")
+    .limit(10)
+    .onSnapshot(
+      async (snap) => {
         try {
-          await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data: entries, fetchedAt: Date.now() }));
-        } catch {}
-        onUpdate(entries);
-      } catch (err) {
-        console.error("[subscribeToLeaderboard] Error processing snapshot:", err instanceof Error ? err.message : String(err));
-        if (onError) onError(err instanceof Error ? err : new Error(String(err)));
-      }
-    },
-    (err) => {
-      console.error("[subscribeToLeaderboard] Listener error:", err?.code || err?.message);
-      if (onError) onError(err);
-    }
-  );
+          const entries = await buildLeaderboardEntries(snap.docs);
+          try {
+            await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data: entries, fetchedAt: Date.now() }));
+          } catch {}
+          onUpdate(entries);
+        } catch (err) {
+          onError?.(err instanceof Error ? err : new Error(String(err)));
+        }
+      },
+      (err) => onError?.(err)
+    );
 }

@@ -1,8 +1,4 @@
-import {
-  collection, doc, addDoc, updateDoc, getDocs, query,
-  where, orderBy, limit, serverTimestamp, Timestamp, increment,
-  onSnapshot, Unsubscribe, setDoc, writeBatch, documentId,
-} from "firebase/firestore";
+import firestore from "@react-native-firebase/firestore";
 import { requireFirestore } from "@/firebase";
 import { FocusSession } from "@/types/session";
 
@@ -21,11 +17,11 @@ export async function startSession(
   targetMinutes: number | null
 ): Promise<string> {
   const db = requireFirestore();
-  const ref = await addDoc(collection(db, "sessions"), {
+  const ref = await db.collection("sessions").add({
     uid,
     categoryId,
     title,
-    startTime: serverTimestamp(),
+    startTime: firestore.FieldValue.serverTimestamp(),
     endTime: null,
     durationMinutes: 0,
     targetMinutes,
@@ -44,18 +40,15 @@ export async function setStudyingStatus(
   currentSessionStart?: any
 ): Promise<void> {
   const db = requireFirestore();
-  const data: Record<string, any> = {
-    isStudying,
-    lastActiveAt: serverTimestamp(),
-    currentSessionId: isStudying ? currentSessionId : null,
-    currentSubject: isStudying ? currentSubject : null,
-    currentTargetMinutes: isStudying ? currentTargetMinutes : null,
-    currentSessionStart: isStudying ? currentSessionStart || serverTimestamp() : null,
-  };
-
-  await setDoc(
-    doc(db, "users", uid),
-    data,
+  await db.collection("users").doc(uid).set(
+    {
+      isStudying,
+      lastActiveAt: firestore.FieldValue.serverTimestamp(),
+      currentSessionId: isStudying ? currentSessionId : null,
+      currentSubject: isStudying ? currentSubject : null,
+      currentTargetMinutes: isStudying ? currentTargetMinutes : null,
+      currentSessionStart: isStudying ? currentSessionStart || firestore.FieldValue.serverTimestamp() : null,
+    },
     { merge: true }
   );
 }
@@ -67,38 +60,31 @@ export async function touchStudyingStatus(
   currentTargetMinutes?: number | null,
   currentSessionStart?: any
 ): Promise<void> {
-  const db = requireFirestore();
   const data: Record<string, any> = {
     isStudying: true,
-    lastActiveAt: serverTimestamp(),
+    lastActiveAt: firestore.FieldValue.serverTimestamp(),
     currentSessionId,
     currentSubject: currentSubject || null,
     currentTargetMinutes: currentTargetMinutes ?? null,
   };
   if (currentSessionStart) data.currentSessionStart = currentSessionStart;
-
-  await setDoc(
-    doc(db, "users", uid),
-    data,
-    { merge: true }
-  );
+  await requireFirestore().collection("users").doc(uid).set(data, { merge: true });
 }
 
 export async function cancelSession(uid: string, sessionId: string): Promise<void> {
   const db = requireFirestore();
-  const batch = writeBatch(db);
-
-  batch.update(doc(db, "sessions", sessionId), {
-    endTime: serverTimestamp(),
+  const batch = db.batch();
+  batch.update(db.collection("sessions").doc(sessionId), {
+    endTime: firestore.FieldValue.serverTimestamp(),
     durationMinutes: 0,
     isCompleted: true,
     cancelled: true,
   });
   batch.set(
-    doc(db, "users", uid),
+    db.collection("users").doc(uid),
     {
       isStudying: false,
-      lastActiveAt: serverTimestamp(),
+      lastActiveAt: firestore.FieldValue.serverTimestamp(),
       currentSessionId: null,
       currentSubject: null,
       currentTargetMinutes: null,
@@ -106,76 +92,73 @@ export async function cancelSession(uid: string, sessionId: string): Promise<voi
     },
     { merge: true }
   );
-
   await batch.commit();
 }
 
-export async function completeSession(
-  uid: string,
-  sessionId: string,
-  durationMinutes: number
-): Promise<void> {
+export async function completeSession(uid: string, sessionId: string, durationMinutes: number): Promise<void> {
   const db = requireFirestore();
-  console.log("[completeSession] Starting for uid:", uid, "sessionId:", sessionId, "duration:", durationMinutes);
+  console.log("[completeSession] START", { uid, sessionId, durationMinutes });
   
-  try {
-    const batch = writeBatch(db);
-    batch.update(doc(db, "sessions", sessionId), {
-      endTime: serverTimestamp(),
-      durationMinutes,
-      isCompleted: true,
+  const batch = db.batch();
+  batch.update(db.collection("sessions").doc(sessionId), {
+    endTime: firestore.FieldValue.serverTimestamp(),
+    durationMinutes,
+    isCompleted: true,
+  });
+  batch.set(
+    db.collection("users").doc(uid),
+    {
+      isStudying: false,
+      lastActiveAt: firestore.FieldValue.serverTimestamp(),
+      currentSessionId: null,
+      currentSubject: null,
+      currentTargetMinutes: null,
+      currentSessionStart: null,
+    },
+    { merge: true }
+  );
+  await batch.commit();
+  console.log("[completeSession] Batch committed (session marked isCompleted, user isStudying=false)");
+
+  if (durationMinutes > 0) {
+    await db.collection("users").doc(uid).update({
+      totalFocusMinutes: firestore.FieldValue.increment(durationMinutes),
     });
-    batch.set(
-      doc(db, "users", uid),
-      {
-        isStudying: false,
-        lastActiveAt: serverTimestamp(),
-        currentSessionId: null,
-        currentSubject: null,
-        currentTargetMinutes: null,
-        currentSessionStart: null,
-      },
-      { merge: true }
-    );
-    await batch.commit();
-    console.log("[completeSession] Session marked complete:", sessionId);
+    console.log("[completeSession] users/{uid}.totalFocusMinutes incremented by", durationMinutes);
+    console.log("[completeSession] Firestore path: users/", uid);
     
-    if (durationMinutes > 0) {
-      await updateDoc(doc(db, "users", uid), {
-        totalFocusMinutes: increment(durationMinutes),
+    // Fetch updated user doc to verify
+    const userSnap = await db.collection("users").doc(uid).get();
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      console.log("[completeSession] VERIFICATION: users/{uid} after update", {
+        uid,
+        totalFocusMinutes: userData?.totalFocusMinutes,
       });
-      console.log("[completeSession] User totalFocusMinutes updated - uid:", uid, "added:", durationMinutes);
     }
-  } catch (error: any) {
-    console.error("[completeSession] Error - uid:", uid, "error:", error?.code || error?.message);
-    throw error;
   }
 }
 
 export async function getRecentSessions(uid: string, count = 20): Promise<FocusSession[]> {
-  const db = requireFirestore();
-  const q = query(
-    collection(db, "sessions"),
-    where("uid", "==", uid),
-    where("isCompleted", "==", true),
-    orderBy("startTime", "desc"),
-    limit(count)
-  );
-  const snap = await getDocs(q);
+  const snap = await requireFirestore()
+    .collection("sessions")
+    .where("uid", "==", uid)
+    .where("isCompleted", "==", true)
+    .orderBy("startTime", "desc")
+    .limit(count)
+    .get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as FocusSession));
 }
 
 export async function getTodayMinutes(uid: string): Promise<number> {
-  const db = requireFirestore();
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
-  const q = query(
-    collection(db, "sessions"),
-    where("uid", "==", uid),
-    where("isCompleted", "==", true),
-    where("startTime", ">=", Timestamp.fromDate(startOfDay))
-  );
-  const snap = await getDocs(q);
+  const snap = await requireFirestore()
+    .collection("sessions")
+    .where("uid", "==", uid)
+    .where("isCompleted", "==", true)
+    .where("startTime", ">=", firestore.Timestamp.fromDate(startOfDay))
+    .get();
   return snap.docs.reduce((sum, d) => sum + (d.data().durationMinutes ?? 0), 0);
 }
 
@@ -188,14 +171,13 @@ export async function getWeeklyMinutes(uid: string): Promise<number[]> {
     start.setHours(0, 0, 0, 0);
     const end = new Date(start);
     end.setHours(23, 59, 59, 999);
-    const q = query(
-      collection(db, "sessions"),
-      where("uid", "==", uid),
-      where("isCompleted", "==", true),
-      where("startTime", ">=", Timestamp.fromDate(start)),
-      where("startTime", "<=", Timestamp.fromDate(end))
-    );
-    const snap = await getDocs(q);
+    const snap = await db
+      .collection("sessions")
+      .where("uid", "==", uid)
+      .where("isCompleted", "==", true)
+      .where("startTime", ">=", firestore.Timestamp.fromDate(start))
+      .where("startTime", "<=", firestore.Timestamp.fromDate(end))
+      .get();
     days.push(snap.docs.reduce((sum, d) => sum + (d.data().durationMinutes ?? 0), 0));
   }
   return days;
@@ -203,9 +185,7 @@ export async function getWeeklyMinutes(uid: string): Promise<number[]> {
 
 function isFreshStatus(data: any): boolean {
   if (!data?.lastActiveAt) return false;
-  const lastActive = typeof data.lastActiveAt?.toDate === "function"
-    ? data.lastActiveAt.toDate().getTime()
-    : 0;
+  const lastActive = typeof data.lastActiveAt?.toDate === "function" ? data.lastActiveAt.toDate().getTime() : 0;
   return Date.now() - lastActive <= STUDYING_STALE_MS;
 }
 
@@ -217,7 +197,7 @@ export function subscribeToStudyingStatusesForUids(
   uids: string[],
   onUpdate: (activeSessions: Record<string, any>, summary: StudyingStatusesSummary) => void,
   onError?: (err: Error) => void
-): Unsubscribe {
+): () => void {
   const db = requireFirestore();
   const uniqueUids = Array.from(new Set((uids || []).filter(Boolean)));
   if (uniqueUids.length === 0) {
@@ -228,6 +208,8 @@ export function subscribeToStudyingStatusesForUids(
   const chunks: string[][] = [];
   for (let i = 0; i < uniqueUids.length; i += 10) chunks.push(uniqueUids.slice(i, i + 10));
 
+  console.log("[subscribeToStudyingStatusesForUids] Before Firestore query. Unique UIDs count:", uniqueUids.length, "Chunks:", chunks.length);
+
   const docsByUid: Record<string, any> = {};
   const emit = () => {
     const activeMap: Record<string, any> = {};
@@ -237,9 +219,7 @@ export function subscribeToStudyingStatusesForUids(
       const data = docsByUid[uid];
       if (data) {
         statusMap[uid] = data;
-        if (isFreshStatus(data)) {
-          onlineCount += 1;
-        }
+        if (isFreshStatus(data)) onlineCount += 1;
         if (isFreshStudyingStatus(data)) activeMap[uid] = data;
       }
     });
@@ -251,24 +231,25 @@ export function subscribeToStudyingStatusesForUids(
   };
 
   const unsubscribes = chunks.map((chunk) => {
-    const q = query(collection(db, "users"), where(documentId(), "in", chunk));
-    return onSnapshot(
-      q,
-      (snap) => {
-        snap.docs.forEach((d) => {
-          docsByUid[d.id] = { uid: d.id, ...d.data() };
-        });
-        emit();
-      },
-      (err) => {
-        console.error("[subscribeToStudyingStatusesForUids] Listener error:", err?.message);
-        if (onError) onError(err);
-      }
-    );
+    const documentIdField = '__name__';
+    console.log("WHERE ARG =", documentIdField);
+    console.log("WHERE TYPE =", typeof documentIdField);
+    console.log("[subscribeToStudyingStatusesForUids] Executing .where() with chunk:", chunk);
+    return db
+      .collection("users")
+      .where(documentIdField, "in", chunk)
+      .onSnapshot(
+        (snap) => {
+          console.log("[subscribeToStudyingStatusesForUids] Query snapshot received. Docs count:", snap.docs.length);
+          snap.docs.forEach((d) => {
+            docsByUid[d.id] = { uid: d.id, ...d.data() };
+          });
+          emit();
+        },
+        (err) => onError?.(err)
+      );
   });
-
   const staleInterval = setInterval(emit, 15000);
-
   return () => {
     clearInterval(staleInterval);
     unsubscribes.forEach((unsubscribe) => unsubscribe());
@@ -280,19 +261,17 @@ export async function getLastCompletedSessionsForUids(uids: string[], limitPerQu
   if (!uids || uids.length === 0) return {};
   const result: Record<string, any> = {};
 
-  // Firestore supports "in" for up to 10 values. If more, chunk.
   const chunks: string[][] = [];
   for (let i = 0; i < uids.length; i += 10) chunks.push(uids.slice(i, i + 10));
 
   for (const chunk of chunks) {
-    const q = query(
-      collection(db, "sessions"),
-      where("uid", "in", chunk),
-      where("isCompleted", "==", true),
-      orderBy("startTime", "desc"),
-      limit(limitPerQuery)
-    );
-    const snap = await getDocs(q);
+    const snap = await db
+      .collection("sessions")
+      .where("uid", "in", chunk)
+      .where("isCompleted", "==", true)
+      .orderBy("startTime", "desc")
+      .limit(limitPerQuery)
+      .get();
     snap.docs.forEach((d) => {
       const data = { id: d.id, ...d.data() } as any;
       const uid = data.uid;
@@ -304,3 +283,4 @@ export async function getLastCompletedSessionsForUids(uids: string[], limitPerQu
 
   return result;
 }
+

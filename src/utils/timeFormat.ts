@@ -8,6 +8,36 @@ export function formatMinutesToHoursMinutes(totalMinutes: number): string {
   return `${totalMinutes}m`;
 }
 
+export function formatElapsedTime(elapsedSeconds: number): string {
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = elapsedSeconds % 60;
+  
+  const pad = (n: number) => String(n).padStart(2, "0");
+  
+  if (hours > 0) {
+    return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+  }
+  return `${pad(minutes)}:${pad(seconds)}`;
+}
+
+/**
+ * Format elapsed seconds as compact time string: "2h 14m", "18m", "45s"
+ */
+export function formatLiveElapsedTime(elapsedSeconds: number): string {
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = elapsedSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m`;
+  }
+  return `${seconds}s`;
+}
+
 export function formatLastActive(timestampMs: number): string {
   const now = Date.now();
   const diffMs = now - timestampMs;

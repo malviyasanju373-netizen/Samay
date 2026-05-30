@@ -1,25 +1,14 @@
-import {
-  collection, doc, getDoc, getDocs, updateDoc,
-  serverTimestamp, increment, onSnapshot, Unsubscribe, writeBatch, query, orderBy, Timestamp,
-  addDoc,
-} from "firebase/firestore";
+import firestore from "@react-native-firebase/firestore";
 import { auth, requireFirestore } from "@/firebase";
-import { Group, GroupMember, GroupLeaderboardEntry } from "@/types/group";
+import { ActiveSession, Group, GroupMember, GroupLeaderboardEntry } from "@/types/group";
 
-/**
- * Firestore Schema:
- * groups/{groupId}
- *   name, description, createdBy, createdAt, memberCount, maxMembers, attendancePercentage, totalStudyTime
- * 
- * groups/{groupId}/members/{uid}
- *   uid, name, displayName, studyTime, attendance, isOnline, joinedAt, photoURL, totalFocusMinutes
- */
+// ... (existing code, added imports)
 
 const GROUPS_CACHE_TTL_MS = 30 * 1000;
 let groupsListCache: { fetchedAt: number; groups: Group[] } | null = null;
 
 type ListenerEntry<T> = {
-  unsubscribe: Unsubscribe;
+  unsubscribe: () => void;
   hasLatest: boolean;
   latest?: T;
   subscribers: Set<{
@@ -39,7 +28,7 @@ function normalizeGroup(id: string, data: Record<string, any>): Group {
     description: String(data.description || ""),
     createdBy: String(data.createdBy || "Unknown"),
     adminId: data?.adminId ? String(data.adminId) : String(data.createdBy || ""),
-    createdAt: data?.createdAt && typeof data.createdAt.toDate === "function" ? data.createdAt : Timestamp.now(),
+    createdAt: data?.createdAt && typeof data.createdAt.toDate === "function" ? data.createdAt : firestore.Timestamp.now(),
     memberCount: Number(data.memberCount || 0),
     maxMembers: Math.max(1, Number(data.maxMembers || 50)),
     attendancePercentage: Number(data.attendancePercentage ?? 0),
@@ -60,10 +49,7 @@ function normalizeGroupMember(uid: string, data: Record<string, any>): GroupMemb
     totalFocusMinutes: Number(data.totalFocusMinutes ?? rawStudyTime),
     attendance: Number(data.attendance ?? 0),
     isOnline: Boolean(data.isOnline ?? false),
-    joinedAt:
-      data?.joinedAt && typeof data.joinedAt.toDate === "function"
-        ? data.joinedAt
-        : Timestamp.now(),
+    joinedAt: data?.joinedAt && typeof data.joinedAt.toDate === "function" ? data.joinedAt : firestore.Timestamp.now(),
     photoURL: data.photoURL || null,
   } as GroupMember;
 }
@@ -90,20 +76,15 @@ export async function createGroup(
   const groupName = name.trim();
   if (!groupName) throw new Error("Group name is required");
 
-  console.log("Current user:", auth?.currentUser);
-
-  const uid = auth?.currentUser?.uid;
-
-  if (!uid) {
-    throw new Error("User not logged in");
-  }
+  const uid = auth().currentUser?.uid;
+  if (!uid) throw new Error("User not logged in");
 
   const groupData = {
     name: groupName,
     description: description || "",
     adminId: uid,
     createdBy: uid,
-    createdAt: serverTimestamp(),
+    createdAt: firestore.FieldValue.serverTimestamp(),
     memberCount: 1,
     maxMembers: Math.max(1, Number(maxMembers || 50)),
     attendancePercentage: 0,
@@ -111,16 +92,11 @@ export async function createGroup(
     camStudyHours: 0,
   };
 
-  const groupRef = await addDoc(collection(db, "groups"), groupData);
+  const groupRef = await db.collection("groups").add(groupData);
   const groupId = groupRef.id;
-
-  console.log("Saved group:", groupData);
-
-  const batch = writeBatch(db);
-
-  // Add creator as first member
-  batch.set(doc(db, "groups", groupId, "members", uid), {
-    uid: uid,
+  const batch = db.batch();
+  batch.set(db.collection("groups").doc(groupId).collection("members").doc(uid), {
+    uid,
     name: creatorDisplayName,
     displayName: creatorDisplayName,
     photoURL: creatorPhotoURL || null,
@@ -128,7 +104,7 @@ export async function createGroup(
     studyTime: 0,
     attendance: 0,
     isOnline: false,
-    joinedAt: serverTimestamp(),
+    joinedAt: firestore.FieldValue.serverTimestamp(),
   });
   await batch.commit();
   groupsListCache = null;
@@ -136,18 +112,17 @@ export async function createGroup(
   return {
     id: groupId,
     ...groupData,
-    createdAt: Timestamp.now(), // Fallback for local UI until sync
+    createdAt: firestore.Timestamp.now(),
   } as Group;
 }
 
 export async function getGroup(groupId: string): Promise<Group | null> {
   if (!groupId) return null;
   try {
-    const db = requireFirestore();
-    const snap = await getDoc(doc(db, "groups", groupId));
+    const snap = await requireFirestore().collection("groups").doc(groupId).get();
     if (!snap.exists()) return null;
-    return normalizeGroup(snap.id, snap.data());
-  } catch (err: any) {
+    return normalizeGroup(snap.id, snap.data() || {});
+  } catch {
     return null;
   }
 }
@@ -158,14 +133,13 @@ export async function getGroupsList(forceRefresh = false): Promise<Group[]> {
   }
 
   try {
-    const db = requireFirestore();
-    const snap = await getDocs(collection(db, "groups"));
+    const snap = await requireFirestore().collection("groups").get();
     const groups = snap.docs
       .map((d) => normalizeGroup(d.id, d.data()))
       .sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
     groupsListCache = { fetchedAt: Date.now(), groups };
     return groups;
-  } catch (err: any) {
+  } catch {
     return [];
   }
 }
@@ -175,16 +149,12 @@ export async function joinGroup(groupId: string, uid: string, displayName: strin
   if (!groupId) throw new Error("Missing group id");
   if (!uid) throw new Error("User not authenticated");
 
-  const groupRef = doc(db, "groups", groupId);
-  const memberRef = doc(db, "groups", groupId, "members", uid);
+  const groupRef = db.collection("groups").doc(groupId);
+  const memberRef = groupRef.collection("members").doc(uid);
+  const existing = await memberRef.get();
+  if (existing.exists()) return;
 
-  // Check if already member
-  const existing = await getDoc(memberRef);
-  if (existing.exists()) {
-    return;
-  }
-
-  const batch = writeBatch(db);
+  const batch = db.batch();
   batch.set(memberRef, {
     uid,
     name: displayName,
@@ -194,14 +164,13 @@ export async function joinGroup(groupId: string, uid: string, displayName: strin
     studyTime: 0,
     attendance: 0,
     isOnline: false,
-    joinedAt: serverTimestamp(),
+    joinedAt: firestore.FieldValue.serverTimestamp(),
   });
   batch.update(groupRef, {
-    memberCount: increment(1),
+    memberCount: firestore.FieldValue.increment(1),
   });
   await batch.commit();
   groupsListCache = null;
-
 }
 
 export async function leaveGroup(groupId: string, uid: string): Promise<void> {
@@ -209,67 +178,270 @@ export async function leaveGroup(groupId: string, uid: string): Promise<void> {
   if (!groupId) throw new Error("Missing group id");
   if (!uid) throw new Error("User not authenticated");
 
-  const batch = writeBatch(db);
-  batch.delete(doc(db, "groups", groupId, "members", uid));
-  batch.update(doc(db, "groups", groupId), {
-    memberCount: increment(-1),
-  });
+  const groupRef = db.collection("groups").doc(groupId);
+  const batch = db.batch();
+  batch.delete(groupRef.collection("members").doc(uid));
+  batch.update(groupRef, { memberCount: firestore.FieldValue.increment(-1) });
   await batch.commit();
   groupsListCache = null;
-
 }
 
 export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
   if (!groupId) return [];
   try {
     const db = requireFirestore();
-    const snap = await getDocs(collection(db, "groups", groupId, "members"));
-    const members = snap.docs.map((d) => normalizeGroupMember(d.id, d.data()));
-    return members.sort((a, b) => b.studyTime - a.studyTime);
+    console.log("[getGroupMembers] Reading from groups/", groupId, "/members");
+    const snap = await db.collection("groups").doc(groupId).collection("members").get();
+    console.log("[getGroupMembers] Found", snap.docs.length, "members in group");
+    
+    // Fetch totalFocusMinutes from users collection for each member
+    const members = await Promise.all(
+      snap.docs.map(async (d) => {
+        const uid = d.id;
+        const memberData = d.data();
+        const memberDocValue = Number(memberData.totalFocusMinutes || 0);
+        
+        console.log("[getGroupMembers]", {
+          uid,
+          "groups/{groupId}/members/{uid}.totalFocusMinutes": memberDocValue,
+          firestore_path_member_doc: `groups/${groupId}/members/${uid}`,
+        });
+        
+        let totalFocusMinutes = memberDocValue;
+        
+        try {
+          const userSnap = await db.collection("users").doc(uid).get();
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            const fetchedMinutes = Number(userData?.totalFocusMinutes || 0);
+            console.log("[getGroupMembers]", {
+              uid,
+              "users/{uid}.totalFocusMinutes": fetchedMinutes,
+              firestore_path_user_doc: `users/${uid}`,
+              synced: memberDocValue === fetchedMinutes,
+            });
+            totalFocusMinutes = fetchedMinutes;
+          }
+        } catch (err: any) {
+          console.error(`[getGroupMembers] Failed to fetch user ${uid}:`, err?.message);
+        }
+        
+        const normalized = normalizeGroupMember(uid, memberData);
+        return { ...normalized, totalFocusMinutes, studyTime: totalFocusMinutes };
+      })
+    );
+    
+    return members.sort((a, b) => b.totalFocusMinutes - a.totalFocusMinutes);
   } catch (err: any) {
+    console.error("[getGroupMembers] Error:", err?.message);
     return [];
   }
 }
 
 export async function getGroupLeaderboard(groupId: string): Promise<GroupLeaderboardEntry[]> {
   const members = await getGroupMembers(groupId);
-  return members.map((m, i) => ({ ...m, rank: i + 1 }));
+  return members.map((m, i) => {
+    console.log(`[getGroupLeaderboard] rank: ${i + 1}, uid: ${m.uid}, rendered minutes: ${m.totalFocusMinutes}`);
+    return { ...m, rank: i + 1 };
+  });
 }
 
-export async function deleteGroup(groupId: string): Promise<void> {
-  if (!groupId) throw new Error("Missing group id");
-  const db = requireFirestore();
+export async function startActiveFocusSession(
+  groupId: string,
+  userId: string,
+  userName: string
+): Promise<void> {
+  if (!groupId || !userId) throw new Error("Invalid groupId or userId");
   try {
-    // Delete members and messages in batches
-    const batch = writeBatch(db);
+    await requireFirestore()
+      .collection("groups")
+      .doc(groupId)
+      .collection("activeSessions")
+      .doc(userId)
+      .set({
+        uid: userId,
+        displayName: userName,
+        startedAt: firestore.FieldValue.serverTimestamp(),
+        groupId,
+      }, { merge: true });
+  } catch (err: any) {
+    console.error("[groups] startActiveFocusSession error:", err?.message);
+    throw err;
+  }
+}
 
-    const membersSnap = await getDocs(collection(db, "groups", groupId, "members"));
-    let opCount = 0;
-    for (const d of membersSnap.docs) {
-      batch.delete(doc(db, "groups", groupId, "members", d.id));
-      opCount++;
-      if (opCount >= 400) {
-        await batch.commit();
-        opCount = 0;
+export async function stopActiveFocusSession(groupId: string, userId: string): Promise<void> {
+  if (!groupId || !userId) throw new Error("Invalid groupId or userId");
+  try {
+    await requireFirestore()
+      .collection("groups")
+      .doc(groupId)
+      .collection("activeSessions")
+      .doc(userId)
+      .delete();
+  } catch (err: any) {
+    console.error("[groups] stopActiveFocusSession error:", err?.message);
+    throw err;
+  }
+}
+
+/**
+ * Check if user is a member of group
+ */
+export async function isMemberOfGroup(groupId: string, uid: string): Promise<boolean> {
+  if (!groupId || !uid) return false;
+  try {
+    const snap = await requireFirestore()
+      .collection("groups")
+      .doc(groupId)
+      .collection("members")
+      .doc(uid)
+      .get();
+    return snap.exists();
+  } catch (err: any) {
+    console.error("[groups] isMemberOfGroup error:", err?.message);
+    return false;
+  }
+}
+
+/**
+ * Request to join a private group
+ */
+export async function requestJoinGroup(groupId: string, uid: string, displayName: string): Promise<void> {
+  if (!groupId || !uid) throw new Error("Invalid groupId or userId");
+  try {
+    const db = requireFirestore();
+    const requestRef = db.collection("groups").doc(groupId).collection("joinRequests").doc(uid);
+    
+    const existing = await requestRef.get();
+    if (existing.exists()) {
+      const existingStatus = existing.data()?.status;
+      if (existingStatus === "pending") {
+        throw new Error("Join request already pending");
+      }
+      // If status is "rejected" or "cancelled", update the existing request to "pending"
+      if (existingStatus === "rejected" || existingStatus === "cancelled") {
+        await requestRef.update({
+          requestedAt: firestore.FieldValue.serverTimestamp(),
+          status: "pending",
+        });
+        return;
       }
     }
+    
+    await requestRef.set({
+      uid,
+      displayName,
+      requestedAt: firestore.FieldValue.serverTimestamp(),
+      status: "pending",
+    });
+  } catch (err: any) {
+    console.error("[groups] requestJoinGroup error:", err?.message);
+    throw err;
+  }
+}
 
-    const messagesSnap = await getDocs(collection(db, "groups", groupId, "messages"));
-    for (const d of messagesSnap.docs) {
-      batch.delete(doc(db, "groups", groupId, "messages", d.id));
-      opCount++;
-      if (opCount >= 400) {
-        await batch.commit();
-        opCount = 0;
-      }
-    }
+/**
+ * Check if user has pending join request
+ */
+export async function hasPendingJoinRequest(groupId: string, uid: string): Promise<boolean> {
+  if (!groupId || !uid) return false;
+  try {
+    const snap = await requireFirestore()
+      .collection("groups")
+      .doc(groupId)
+      .collection("joinRequests")
+      .doc(uid)
+      .get();
+    return snap.exists() && snap.data()?.status === "pending";
+  } catch (err: any) {
+    console.error("[groups] hasPendingJoinRequest error:", err?.message);
+    return false;
+  }
+}
 
-    // delete the group document
-    batch.delete(doc(db, "groups", groupId));
+/**
+ * Get pending join requests for a group (admin only)
+ */
+export async function getPendingJoinRequests(groupId: string): Promise<Array<any>> {
+  if (!groupId) return [];
+  try {
+    const snap = await requireFirestore()
+      .collection("groups")
+      .doc(groupId)
+      .collection("joinRequests")
+      .where("status", "==", "pending")
+      .get();
+    return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+  } catch (err: any) {
+    console.error("[groups] getPendingJoinRequests error:", err?.message);
+    return [];
+  }
+}
+
+/**
+ * Approve join request and add user as member
+ */
+export async function approveJoinRequest(groupId: string, uid: string, displayName: string, photoURL?: string | null): Promise<void> {
+  if (!groupId || !uid) throw new Error("Invalid groupId or userId");
+  try {
+    const db = requireFirestore();
+    const groupRef = db.collection("groups").doc(groupId);
+    const batch = db.batch();
+    
+    // Add as member
+    batch.set(groupRef.collection("members").doc(uid), {
+      uid,
+      name: displayName,
+      displayName,
+      photoURL: photoURL || null,
+      totalFocusMinutes: 0,
+      studyTime: 0,
+      attendance: 0,
+      isOnline: false,
+      joinedAt: firestore.FieldValue.serverTimestamp(),
+    });
+    
+    // Update join request status
+    batch.update(groupRef.collection("joinRequests").doc(uid), {
+      status: "approved",
+      approvedAt: firestore.FieldValue.serverTimestamp(),
+    });
+    
+    // Increment member count
+    batch.update(groupRef, {
+      memberCount: firestore.FieldValue.increment(1),
+    });
+    
     await batch.commit();
+    console.log("[groups] Join request approved for:", groupId, uid);
     groupsListCache = null;
-  } catch (err) {
-    throw err instanceof Error ? err : new Error(String(err));
+  } catch (err: any) {
+    console.error("[groups] approveJoinRequest error:", err?.message);
+    throw err;
+  }
+}
+
+/**
+ * Reject join request
+ */
+export async function rejectJoinRequest(groupId: string, uid: string): Promise<void> {
+  if (!groupId || !uid) throw new Error("Invalid groupId or userId");
+  try {
+    const db = requireFirestore();
+    await db
+      .collection("groups")
+      .doc(groupId)
+      .collection("joinRequests")
+      .doc(uid)
+      .update({
+        status: "rejected",
+        rejectedAt: firestore.FieldValue.serverTimestamp(),
+      });
+    console.log("[groups] Join request rejected for:", groupId, uid);
+  } catch (err: any) {
+    console.error("[groups] rejectJoinRequest error:", err?.message);
+    throw err;
   }
 }
 
@@ -277,7 +449,7 @@ export function subscribeToGroupMembers(
   groupId: string,
   onUpdate: (members: GroupMember[]) => void,
   onError?: (error: Error) => void
-): Unsubscribe {
+): () => void {
   if (!groupId) {
     onUpdate([]);
     return () => {};
@@ -296,9 +468,7 @@ export function subscribeToGroupMembers(
     };
   }
 
-
   try {
-    const db = requireFirestore();
     const subscriber = { onUpdate, onError };
     const entry: ListenerEntry<GroupMember[]> = {
       hasLatest: false,
@@ -306,21 +476,65 @@ export function subscribeToGroupMembers(
       unsubscribe: () => {},
     };
     groupMembersListeners.set(groupId, entry);
-
-    entry.unsubscribe = onSnapshot(
-      collection(db, "groups", groupId, "members"),
-      (snap) => {
-        try {
-          const members = snap.docs.map((d) => normalizeGroupMember(d.id, d.data()));
-          notifyListeners(entry, members.sort((a, b) => b.studyTime - a.studyTime));
-        } catch (err) {
-          notifyListenerErrors(entry, err instanceof Error ? err : new Error(String(err)));
-        }
-      },
-      (err) => {
-        notifyListenerErrors(entry, err);
-      }
-    );
+    const db = requireFirestore();
+    entry.unsubscribe = db
+      .collection("groups")
+      .doc(groupId)
+      .collection("members")
+      .onSnapshot(
+        async (snap) => {
+          try {
+            console.log("[subscribeToGroupMembers] Snapshot received for groupId:", groupId, "member count:", snap.docs.length);
+            
+            // Fetch totalFocusMinutes from users collection for each member
+            const members = await Promise.all(
+              snap.docs.map(async (d) => {
+                const uid = d.id;
+                const memberData = d.data();
+                const memberDocValue = Number(memberData.totalFocusMinutes || 0);
+                
+                console.log("[subscribeToGroupMembers]", {
+                  uid,
+                  "groups/{groupId}/members/{uid}.totalFocusMinutes": memberDocValue,
+                  firestore_path: `groups/${groupId}/members/${uid}`,
+                });
+                
+                let totalFocusMinutes = memberDocValue;
+                
+                try {
+                  const userSnap = await db.collection("users").doc(uid).get();
+                  if (userSnap.exists()) {
+                    const userData = userSnap.data();
+                    const fetchedMinutes = Number(userData?.totalFocusMinutes || 0);
+                    console.log("[subscribeToGroupMembers]", {
+                      uid,
+                      "users/{uid}.totalFocusMinutes": fetchedMinutes,
+                      firestore_path: `users/${uid}`,
+                      synced: memberDocValue === fetchedMinutes,
+                    });
+                    totalFocusMinutes = fetchedMinutes;
+                  }
+                } catch (err: any) {
+                  console.error(`[subscribeToGroupMembers] Failed to fetch user ${uid}:`, err?.message);
+                }
+                
+                const normalized = normalizeGroupMember(uid, memberData);
+                return { ...normalized, totalFocusMinutes, studyTime: totalFocusMinutes };
+              })
+            );
+            const sorted = members.sort((a, b) => b.totalFocusMinutes - a.totalFocusMinutes);
+            console.log("[subscribeToGroupMembers] Broadcasting update, top member:", {
+              uid: sorted[0]?.uid,
+              totalFocusMinutes: sorted[0]?.totalFocusMinutes,
+            });
+            notifyListeners(entry, sorted);
+          } catch (err) {
+            console.error("[subscribeToGroupMembers] Error processing snapshot:", err);
+            notifyListenerErrors(entry, err instanceof Error ? err : new Error(String(err)));
+          }
+        },
+        (err) => notifyListenerErrors(entry, err)
+      );
     return () => {
       entry.subscribers.delete(subscriber);
       if (entry.subscribers.size === 0) {
@@ -329,8 +543,7 @@ export function subscribeToGroupMembers(
       }
     };
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    if (onError) onError(error);
+    onError?.(err instanceof Error ? err : new Error(String(err)));
     return () => {};
   }
 }
@@ -339,7 +552,7 @@ export function subscribeToGroup(
   groupId: string,
   onUpdate: (group: Group | null) => void,
   onError?: (error: Error) => void
-): Unsubscribe {
+): () => void {
   if (!groupId) {
     onUpdate(null);
     return () => {};
@@ -358,9 +571,7 @@ export function subscribeToGroup(
     };
   }
 
-
   try {
-    const db = requireFirestore();
     const subscriber = { onUpdate, onError };
     const entry: ListenerEntry<Group | null> = {
       hasLatest: false,
@@ -368,27 +579,19 @@ export function subscribeToGroup(
       unsubscribe: () => {},
     };
     groupListeners.set(groupId, entry);
-
-    entry.unsubscribe = onSnapshot(
-      doc(db, "groups", groupId),
-      (snap) => {
-        try {
+    entry.unsubscribe = requireFirestore()
+      .collection("groups")
+      .doc(groupId)
+      .onSnapshot(
+        (snap) => {
           if (!snap.exists()) {
             notifyListeners(entry, null);
             return;
           }
-
-          const data = snap.data();
-          const group = normalizeGroup(snap.id, data);
-          notifyListeners(entry, group);
-        } catch (err) {
-          notifyListenerErrors(entry, err instanceof Error ? err : new Error(String(err)));
-        }
-      },
-      (err) => {
-        notifyListenerErrors(entry, err);
-      }
-    );
+          notifyListeners(entry, normalizeGroup(snap.id, snap.data() || {}));
+        },
+        (err) => notifyListenerErrors(entry, err)
+      );
     return () => {
       entry.subscribers.delete(subscriber);
       if (entry.subscribers.size === 0) {
@@ -397,55 +600,53 @@ export function subscribeToGroup(
       }
     };
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    if (onError) onError(error);
+    onError?.(err instanceof Error ? err : new Error(String(err)));
     return () => {};
   }
 }
 
-/**
- * Subscribe to the groups collection and listen for real-time updates.
- * @param sortKey Field to sort by (e.g., "createdAt", "attendancePercentage", etc.)
- * @param onUpdate Callback for updated group list
- * @param onError Optional error callback
- * @returns Unsubscribe function
- */
 export function subscribeToGroupsList(
   sortKey: string = "createdAt",
   onUpdate: (groups: Group[]) => void,
   onError?: (error: Error) => void
-): Unsubscribe {
+): () => void {
   try {
-    const db = requireFirestore();
-    const q = query(collection(db, "groups"), orderBy(sortKey, "desc"));
-    return onSnapshot(
-      q,
-      (snap) => {
-        const groups = snap.docs.map((d) => normalizeGroup(d.id, d.data())) as Group[];
-        onUpdate(groups);
-      },
-      (err) => {
-        if (onError) onError(err);
-      }
-    );
-  } catch (err: any) {
-    if (onError) onError(err);
+    return requireFirestore()
+      .collection("groups")
+      .orderBy(sortKey, "desc")
+      .onSnapshot(
+        (snap) => onUpdate(snap.docs.map((d) => normalizeGroup(d.id, d.data()))),
+        (err) => onError?.(err)
+      );
+  } catch (err) {
+    onError?.(err instanceof Error ? err : new Error(String(err)));
     return () => {};
   }
 }
 
-export async function updateGroupMemberMinutes(
-  groupId: string,
-  uid: string,
-  minutesToAdd: number
-): Promise<void> {
-  const db = requireFirestore();
+export async function updateGroupMemberMinutes(groupId: string, uid: string, minutesToAdd: number): Promise<void> {
+  console.log("[GROUP UPDATE] entered");
   if (!groupId || !uid || !Number.isFinite(minutesToAdd)) return;
-  console.log("[updateGroupMemberMinutes] Adding", minutesToAdd, "minutes to uid:", uid, "in group:", groupId);
 
-  await updateDoc(doc(db, "groups", groupId, "members", uid), {
-    totalFocusMinutes: increment(minutesToAdd),
-  });
+  const documentPath = `groups/${groupId}/members/${uid}`;
+  const payload = {
+    totalFocusMinutes: firestore.FieldValue.increment(minutesToAdd),
+    studyTime: firestore.FieldValue.increment(minutesToAdd),
+  };
+
+  try {
+    console.log("[GROUP UPDATE] path =", documentPath);
+    await requireFirestore()
+      .collection("groups")
+      .doc(groupId)
+      .collection("members")
+      .doc(uid)
+      .update(payload);
+    console.log("[GROUP UPDATE] success");
+  } catch (error) {
+    console.log("[GROUP UPDATE] error =", error);
+    throw error;
+  }
 }
 
 function timestampToMillis(value: any): number {

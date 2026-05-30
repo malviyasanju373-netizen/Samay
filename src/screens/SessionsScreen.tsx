@@ -42,7 +42,7 @@ function groupByDate(sessions: FocusSession[]): { date: string; items: FocusSess
 
 export default function SessionsScreen() {
   const { theme } = useTheme();
-  const user = auth?.currentUser;
+  const user = auth().currentUser;
   const s = createStyles(theme);
 
   const [sessions, setSessions] = useState<FocusSession[]>([]);

@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { Timestamp } from "firebase/firestore";
+import firestore from "@react-native-firebase/firestore";
 import { auth } from "@/firebase";
 import { ensureUserProfile, UserProfile } from "@/services/userProfile";
 import { userProfileCacheService } from "@/storage/services";
@@ -24,8 +23,8 @@ function fromCachedProfile(c: CachedUserProfile | null): UserProfile | null {
   if (!c || c.createdAt == null) return null;
   return {
     ...c,
-    createdAt: Timestamp.fromMillis(c.createdAt),
-    usernameLastChanged: c.usernameLastChanged != null ? Timestamp.fromMillis(c.usernameLastChanged) : null,
+    createdAt: firestore.Timestamp.fromMillis(c.createdAt),
+    usernameLastChanged: c.usernameLastChanged != null ? firestore.Timestamp.fromMillis(c.usernameLastChanged) : null,
   };
 }
 
@@ -61,12 +60,7 @@ export function useUserProfile() {
   }, []);
 
   useEffect(() => {
-    if (!auth) {
-      setProfile(null);
-      setLoading(false);
-      return;
-    }
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = auth().onAuthStateChanged((user) => {
       if (user) {
         loadForUser(user.uid, { displayName: user.displayName, email: user.email, photoURL: user.photoURL });
       } else {
@@ -81,7 +75,7 @@ export function useUserProfile() {
   }, [loadForUser, profile?.uid]);
 
   const reload = useCallback((): Promise<UserProfile | null> => {
-    const user = auth?.currentUser;
+    const user = auth().currentUser;
     if (user) return loadForUser(user.uid, { displayName: user.displayName, email: user.email, photoURL: user.photoURL }, { force: true });
     return Promise.resolve(null);
   }, [loadForUser]);

@@ -1,4 +1,4 @@
-import { Timestamp } from "firebase/firestore";
+import type { FirebaseFirestoreTypes } from "@react-native-firebase/firestore";
 
 export type SessionCategory = {
   id: string;
@@ -24,8 +24,8 @@ export type FocusSession = {
   uid: string;
   categoryId: string;
   title: string;
-  startTime: Timestamp;
-  endTime: Timestamp | null;
+  startTime: FirebaseFirestoreTypes.Timestamp;
+  endTime: FirebaseFirestoreTypes.Timestamp | null;
   durationMinutes: number;
   targetMinutes: number | null;
   isCompleted: boolean;

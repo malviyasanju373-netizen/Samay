@@ -27,7 +27,7 @@ function timeAgo(ms: number): string {
 
 export default function LeaderboardScreen({ navigation }: any) {
   const { theme } = useTheme();
-  const currentUid = auth?.currentUser?.uid;
+  const currentUid = auth().currentUser?.uid;
   const { entries, loading, refreshing, fetchedAt, error, refetch } = useLeaderboard();
   const s = createStyles(theme);
 

@@ -6,8 +6,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useTheme } from "@/context/ThemeContext";
-import { auth, db } from "@/firebase";
-import { doc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { auth, firestore } from "@/firebase";
 
 export default function GeneralFeedbackScreen({ navigation }: any) {
   const { theme } = useTheme();
@@ -19,17 +18,13 @@ export default function GeneralFeedbackScreen({ navigation }: any) {
 
   const handleSend = async () => {
     if (!feedback.trim() || sending) return;
-    if (!db) {
-      setError("Feedback is unavailable until Firebase is configured.");
-      return;
-    }
     setSending(true);
     setError("");
     try {
-      await addDoc(collection(db, "feedback"), {
-        uid: auth?.currentUser?.uid ?? null,
+      await firestore().collection("feedback").add({
+        uid: auth().currentUser?.uid ?? null,
         message: feedback.trim(),
-        createdAt: serverTimestamp(),
+        createdAt: firestore.FieldValue.serverTimestamp(),
         app: "samay",
       });
       setSent(true);

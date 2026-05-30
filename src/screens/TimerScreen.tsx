@@ -78,13 +78,14 @@ export default function TimerScreen({ route, navigation }: any) {
     if (busy) return;
     setBusy(true);
     setShowStartModal(false);
-    await start(selectedCategoryId, customTitle.trim() || selectedCat.label, selectedTarget);
+    await start(selectedCategoryId, customTitle.trim() || selectedCat.label, selectedTarget, route?.params?.groupId);
     setBusy(false);
   };
 
   const handleStop = async () => {
     if (busy) return;
     setBusy(true);
+    console.log("[BEFORE STOP] activeSession =", activeSession);
     const done = await stop();
     if (done > 0) {
       setCompletedMinutes(done);

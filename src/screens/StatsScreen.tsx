@@ -31,7 +31,7 @@ function categoryBreakdown(sessions: FocusSession[]): { categoryId: string; minu
 
 export default function StatsScreen() {
   const { theme } = useTheme();
-  const user = auth?.currentUser;
+  const user = auth().currentUser;
   const s = createStyles(theme);
 
   const [weeklyMinutes, setWeeklyMinutes] = useState<number[]>(Array(7).fill(0));

@@ -4,8 +4,7 @@ import {
   Image, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { signOut, updateProfile } from "firebase/auth";
-import { auth, db } from "@/firebase";
+import { auth, firestore } from "@/firebase";
 import { useTheme } from "@/context/ThemeContext";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,7 +12,6 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import {
   changeUsername, cooldownDaysRemaining, updateDisplayName, updateGoal,
 } from "@/services/userProfile";
-import { getDoc, doc } from "firebase/firestore";
 import AppDialog, { AppDialogButton } from "@/components/AppDialog";
 
 const AVATAR_KEY = "LOCAL_PROFILE_PHOTO";
@@ -36,7 +34,7 @@ type DialogState = { title: string; message: string; buttons?: AppDialogButton[]
 
 export default function ProfileScreen({ navigation }: any) {
   const { theme, themeMode, setThemeMode } = useTheme();
-  const user = auth?.currentUser;
+  const user = auth().currentUser;
   const { profile, loading: profileLoading, reload: reloadProfile } = useUserProfile();
 
   const [photoUri, setPhotoUri] = useState<string | null>(user?.photoURL ?? null);
@@ -59,9 +57,9 @@ export default function ProfileScreen({ navigation }: any) {
   }, []);
 
   useEffect(() => {
-    if (!user || !db) return;
-    getDoc(doc(db, "users", user.uid)).then((snap) => {
-      if (snap.exists()) setTotalMinutes(snap.data().totalFocusMinutes ?? 0);
+    if (!user) return;
+    firestore().collection("users").doc(user.uid).get().then((snap) => {
+      if (snap.exists()) setTotalMinutes(snap.data()?.totalFocusMinutes ?? 0);
     }).catch(() => {});
   }, [user]);
 
@@ -90,7 +88,7 @@ export default function ProfileScreen({ navigation }: any) {
     if (!editingName.trim()) return;
     if (!user) { showDialog("Unavailable", "No signed-in user found."); return; }
     try {
-      await updateProfile(user, { displayName: editingName.trim() });
+      await user.updateProfile({ displayName: editingName.trim() });
       await updateDisplayName(user.uid, editingName.trim());
       setIsEditingName(false);
       await reloadProfile();
@@ -135,7 +133,7 @@ export default function ProfileScreen({ navigation }: any) {
   const handleSignOut = () => {
     showDialog("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel", onPress: hideDialog },
-      { text: "Sign Out", style: "destructive", onPress: async () => { hideDialog(); if (auth) await signOut(auth); } },
+      { text: "Sign Out", style: "destructive", onPress: async () => { hideDialog(); await auth().signOut(); } },
     ]);
   };
 

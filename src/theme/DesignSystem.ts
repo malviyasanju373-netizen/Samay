@@ -137,10 +137,10 @@ export const DesignSystem = {
     },
   },
 
-  // animation: {
-  //   duration: { fast: 150, normal: 250, slow: 400 },
-  //   scale: { pressIn: 0.96, pressOut: 1 },
-  // },
+  animation: {
+    duration: { fast: 150, normal: 250, slow: 400 },
+    scale: { pressIn: 0.96, pressOut: 1 },
+  },
 
   components: {
     card: { padding: sp(14), borderRadius: sp(12), gap: sp(10) },

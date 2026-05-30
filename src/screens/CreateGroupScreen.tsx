@@ -26,9 +26,10 @@ const EMOJIS = ["📚", "💻", "🧠", "🎯", "⚡", "🔥"];
 
 export default function CreateGroupScreen({ navigation }: any) {
   const { theme } = useTheme();
-  const currentUid = auth?.currentUser?.uid;
-  const displayName = auth?.currentUser?.displayName ?? "User";
-  const photoURL = auth?.currentUser?.photoURL ?? null;
+  const currentUser = auth().currentUser;
+  const currentUid = currentUser?.uid;
+  const displayName = currentUser?.displayName ?? "User";
+  const photoURL = currentUser?.photoURL ?? null;
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -103,7 +104,7 @@ export default function CreateGroupScreen({ navigation }: any) {
           text: "View Group",
           onPress: () => {
             if (mountedRef.current) {
-              navigation?.navigate?.("GroupDetail", { group });
+              navigation?.navigate?.("GroupDetail", { groupId: group.id });
             }
           },
         },

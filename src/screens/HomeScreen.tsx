@@ -6,9 +6,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useTheme } from "@/context/ThemeContext";
-import { auth, db } from "@/firebase";
+import { auth, firestore } from "@/firebase";
 import { getTodayMinutes, getRecentSessions } from "@/services/sessions";
-import { getDoc, doc } from "firebase/firestore";
 import { FocusSession, CATEGORIES } from "@/types/session";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -34,7 +33,7 @@ function sessionDateLabel(session: FocusSession) {
 
 export default function HomeScreen({ navigation }: any) {
   const { theme } = useTheme();
-  const user = auth?.currentUser;
+  const user = auth().currentUser;
   const s = createStyles(theme);
 
   const [todayMinutes, setTodayMinutes] = useState(0);
@@ -46,7 +45,7 @@ export default function HomeScreen({ navigation }: any) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!user || !db) {
+    if (!user) {
       setError("Sign in to load your focus dashboard.");
       return;
     }
@@ -55,11 +54,11 @@ export default function HomeScreen({ navigation }: any) {
       const [today, sessions, userSnap] = await Promise.all([
         getTodayMinutes(user.uid),
         getRecentSessions(user.uid, 5),
-        getDoc(doc(db, "users", user.uid)),
+        firestore().collection("users").doc(user.uid).get(),
       ]);
       setTodayMinutes(today);
       setRecentSessions(sessions);
-      if (userSnap.exists()) setTotalMinutes(userSnap.data().totalFocusMinutes ?? 0);
+      if (userSnap.exists()) setTotalMinutes(userSnap.data()?.totalFocusMinutes ?? 0);
     } catch (err: any) {
       setError(err?.message ?? "Could not refresh your focus data.");
     }

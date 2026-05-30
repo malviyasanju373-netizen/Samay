@@ -1,77 +1,193 @@
-import { getApp, getApps, initializeApp, FirebaseApp } from "firebase/app";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { type Auth, getAuth, getReactNativePersistence, initializeAuth } from "firebase/auth";
-import { Firestore, getFirestore } from "firebase/firestore";
+/**
+ * React Native Firebase Initialization
+ * 
+ * IMPORTANT: Uses ONLY @react-native-firebase packages.
+ * Auto-initializes from native Android config (google-services.json).
+ * No web SDK, no manual initialization needed.
+ * Single app instance guaranteed.
+ */
 
-const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
-};
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 
-const requiredConfigKeys = [
-  "apiKey",
-  "authDomain",
-  "projectId",
-  "storageBucket",
-  "messagingSenderId",
-  "appId",
-] as const;
+console.log('[RNFirebase] Initializing...');
 
-export const missingFirebaseConfigKeys = requiredConfigKeys.filter((key) => !firebaseConfig[key]);
-export const isFirebaseConfigured = missingFirebaseConfigKeys.length === 0;
-
-console.log("[firebase] config keys present:", {
-  apiKey: !!firebaseConfig.apiKey,
-  authDomain: !!firebaseConfig.authDomain,
-  projectId: !!firebaseConfig.projectId,
-  storageBucket: !!firebaseConfig.storageBucket,
-  messagingSenderId: !!firebaseConfig.messagingSenderId,
-  appId: !!firebaseConfig.appId,
-});
-
-let _app: FirebaseApp | null = null;
-let _auth: Auth | null = null;
-let _db: Firestore | null = null;
-let _initError: string | null = null;
-
-try {
-  if (!isFirebaseConfigured) {
-    _initError = `Missing Firebase config: ${missingFirebaseConfigKeys.join(", ")}`;
-    console.warn(`[firebase] ${_initError}. App will run in signed-out mode.`);
+/**
+ * Get current authenticated user UID
+ */
+export function getCurrentUserUid(): string | null {
+  const user = auth().currentUser;
+  const uid = user?.uid || null;
+  
+  if (uid) {
+    console.log('[RNFirebase] Current user UID:', uid);
   } else {
-    _app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    try {
-      _auth = initializeAuth(_app, {
-        persistence: getReactNativePersistence(AsyncStorage),
-      });
-    } catch (authError: any) {
-      if (authError?.code !== "auth/already-initialized") throw authError;
-      _auth = getAuth(_app);
-    }
-    _db = getFirestore(_app);
-    console.log("[firebase] initialized");
+    console.log('[RNFirebase] No authenticated user');
   }
-} catch (e: any) {
-  _initError = e?.message ?? "Firebase initialization failed";
-  console.error("[firebase] init failed; app will run in signed-out mode:", _initError);
+  
+  return uid;
 }
 
-export const firebaseInitError = _initError;
-export const app = _app;
-export const auth = _auth;
-export const db = _db;
+/**
+ * Safe Firestore listener with error handling
+ * Returns unsubscribe function
+ */
+export function subscribeToDocument(
+  collectionPath: string,
+  docId: string,
+  onSuccess: (data: any) => void,
+  onError?: (error: Error) => void
+): (() => void) | null {
+  try {
+    const uid = getCurrentUserUid();
+    if (!uid) {
+      const err = new Error('User must be authenticated to read Firestore');
+      console.error('[RNFirebase] Document subscription failed:', err.message);
+      onError?.(err);
+      return null;
+    }
 
-export function requireFirebaseAuth(): Auth {
-  if (!_auth) throw new Error(firebaseInitError ?? "Firebase Auth is unavailable.");
-  return _auth;
+    console.log(`[RNFirebase] Subscribing to ${collectionPath}/${docId}`);
+
+    const unsubscribe = firestore()
+      .collection(collectionPath)
+      .doc(docId)
+      .onSnapshot(
+        (snapshot) => {
+          if (!snapshot.exists) {
+            console.warn(`[RNFirebase] Document does not exist: ${collectionPath}/${docId}`);
+            onSuccess(null);
+            return;
+          }
+
+          console.log(`[RNFirebase] Snapshot received: ${collectionPath}/${docId}`, snapshot.data());
+          onSuccess(snapshot.data());
+        },
+        (error) => {
+          console.error(
+            `[RNFirebase] Firestore error for ${collectionPath}/${docId}:`,
+            (error as any).code,
+            error.message
+          );
+          onError?.(error as Error);
+        }
+      );
+
+    return unsubscribe;
+  } catch (err: any) {
+    console.error('[RNFirebase] Failed to subscribe to document:', err?.message);
+    onError?.(err);
+    return null;
+  }
 }
 
-export function requireFirestore(): Firestore {
-  if (!_db) throw new Error(firebaseInitError ?? "Firestore is unavailable.");
-  return _db;
+/**
+ * Safe Firestore collection listener with error handling
+ * Returns unsubscribe function
+ */
+export function subscribeToCollection(
+  collectionPath: string,
+  onSuccess: (docs: any[]) => void,
+  onError?: (error: Error) => void
+): (() => void) | null {
+  try {
+    const uid = getCurrentUserUid();
+    if (!uid) {
+      const err = new Error('User must be authenticated to read Firestore');
+      console.error('[RNFirebase] Collection subscription failed:', err.message);
+      onError?.(err);
+      return null;
+    }
+
+    console.log(`[RNFirebase] Subscribing to collection: ${collectionPath}`);
+
+    const unsubscribe = firestore()
+      .collection(collectionPath)
+      .onSnapshot(
+        (snapshot) => {
+          const docs = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+
+          console.log(`[RNFirebase] Collection snapshot received: ${collectionPath}`, docs.length, 'docs');
+          onSuccess(docs);
+        },
+        (error) => {
+          console.error(
+            `[RNFirebase] Firestore error for collection ${collectionPath}:`,
+            (error as any).code,
+            error.message
+          );
+          onError?.(error as Error);
+        }
+      );
+
+    return unsubscribe;
+  } catch (err: any) {
+    console.error('[RNFirebase] Failed to subscribe to collection:', err?.message);
+    onError?.(err);
+    return null;
+  }
 }
+
+/**
+ * Safe Firestore sub-collection listener
+ * Returns unsubscribe function
+ */
+export function subscribeToSubCollection(
+  collectionPath: string,
+  docId: string,
+  subCollectionPath: string,
+  onSuccess: (docs: any[]) => void,
+  onError?: (error: Error) => void
+): (() => void) | null {
+  try {
+    const uid = getCurrentUserUid();
+    if (!uid) {
+      const err = new Error('User must be authenticated to read Firestore');
+      console.error('[RNFirebase] Sub-collection subscription failed:', err.message);
+      onError?.(err);
+      return null;
+    }
+
+    const fullPath = `${collectionPath}/${docId}/${subCollectionPath}`;
+    console.log(`[RNFirebase] Subscribing to sub-collection: ${fullPath}`);
+
+    const unsubscribe = firestore()
+      .collection(collectionPath)
+      .doc(docId)
+      .collection(subCollectionPath)
+      .onSnapshot(
+        (snapshot) => {
+          const docs = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+
+          console.log(`[RNFirebase] Sub-collection snapshot received: ${fullPath}`, docs.length, 'docs');
+          onSuccess(docs);
+        },
+        (error) => {
+          console.error(
+            `[RNFirebase] Firestore error for sub-collection ${fullPath}:`,
+            (error as any).code,
+            error.message
+          );
+          onError?.(error as Error);
+        }
+      );
+
+    return unsubscribe;
+  } catch (err: any) {
+    console.error('[RNFirebase] Failed to subscribe to sub-collection:', err?.message);
+    onError?.(err);
+    return null;
+  }
+}
+
+export function requireFirestore() {
+  return firestore();
+}
+
+export { auth, firestore };

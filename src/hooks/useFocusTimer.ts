@@ -9,9 +9,20 @@ import {
   startSession,
   touchStudyingStatus,
 } from "@/services/sessions";
+import { startActiveFocusSession, stopActiveFocusSession, updateGroupMemberMinutes } from "@/services/groups";
+import { updateAttendance } from "@/services/attendance";
 import { STORAGE_KEYS } from "@/storage/services";
 
 type TimerState = "idle" | "running" | "paused";
+
+
+
+
+
+
+
+
+
 
 type ActiveSession = {
   sessionId: string;
@@ -20,6 +31,7 @@ type ActiveSession = {
   targetMinutes: number | null;
   startedAt: number;
   elapsedSeconds: number;
+  groupId?: string | null;
 };
 
 const STUDYING_HEARTBEAT_MS = 30 * 1000;
@@ -39,12 +51,19 @@ export function useFocusTimer() {
     AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION).then((raw) => {
       if (!raw) return;
       try {
+
+
+
+
+
         const saved: ActiveSession = JSON.parse(raw);
         const elapsed = saved.elapsedSeconds + Math.floor((Date.now() - saved.startedAt) / 1000);
-        setActiveSession({ ...saved, elapsedSeconds: elapsed, startedAt: Date.now() });
+        const restoredSession = { ...saved, elapsedSeconds: elapsed, startedAt: Date.now() };
+        console.log("[FOCUS RESTORE] activeSession =", restoredSession);
+        setActiveSession(restoredSession);
         setElapsedSeconds(elapsed);
         setTimerState("running");
-        const uid = auth?.currentUser?.uid;
+        const uid = auth().currentUser?.uid;
         if (uid) {
           touchStudyingStatus(
             uid,
@@ -76,7 +95,7 @@ export function useFocusTimer() {
   }, [timerState, tick]);
 
   useEffect(() => {
-    const uid = auth?.currentUser?.uid;
+    const uid = auth().currentUser?.uid;
     if (!uid || !activeSession) return;
 
     if (timerState !== "running") {
@@ -112,7 +131,7 @@ export function useFocusTimer() {
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
       appActiveRef.current = state === "active";
-      const uid = auth?.currentUser?.uid;
+      const uid = auth().currentUser?.uid;
       if (!uid || !activeSession) return;
 
       if (state === "active" && timerState === "running") {
@@ -138,16 +157,35 @@ export function useFocusTimer() {
     AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(updated)).catch(() => {});
   }, [elapsedSeconds, activeSession, timerState]);
 
-  const start = useCallback(async (categoryId: string, title: string, targetMinutes: number | null) => {
+  const start = useCallback(async (categoryId: string, title: string, targetMinutes: number | null, groupId?: string) => {
     setError(null);
-    const uid = auth?.currentUser?.uid;
+
+
+    const uid = auth().currentUser?.uid;
+    const userName = auth().currentUser?.displayName || "User";
     if (!uid) {
       setError("Sign in to start a focus session.");
       return false;
     }
+
+
+
+
+
     try {
       const sessionId = await startSession(uid, categoryId, title, targetMinutes);
-      const session: ActiveSession = { sessionId, categoryId, title, targetMinutes, startedAt: Date.now(), elapsedSeconds: 0 };
+      console.log("[FOCUS START]", { groupId, sessionId, uid });
+      const session: ActiveSession = { sessionId, categoryId, title, targetMinutes, startedAt: Date.now(), elapsedSeconds: 0, groupId: groupId || null };
+      console.log("[ACTIVE SESSION CREATE] activeSession =", session);
+      
+      if (groupId) {
+        try {
+          await startActiveFocusSession(groupId, uid, userName);
+        } catch (groupErr: any) {
+          console.error("[useFocusTimer] Failed to start active focus session in group:", groupErr?.message);
+        }
+      }
+
       setActiveSession(session);
       setElapsedSeconds(0);
       setTimerState("running");
@@ -160,13 +198,13 @@ export function useFocusTimer() {
   }, []);
 
   const pause = useCallback(() => {
-    const uid = auth?.currentUser?.uid;
+    const uid = auth().currentUser?.uid;
     if (uid) setStudyingStatus(uid, false).catch(() => {});
     setTimerState("paused");
   }, []);
 
   const resume = useCallback(() => {
-    const uid = auth?.currentUser?.uid;
+    const uid = auth().currentUser?.uid;
     if (uid && activeSession) {
       touchStudyingStatus(
         uid,
@@ -179,17 +217,67 @@ export function useFocusTimer() {
     setTimerState("running");
   }, [activeSession, elapsedSeconds]);
 
+
+
+
+
+
   const stop = useCallback(async () => {
     if (!activeSession) return 0;
+    console.log("[BEFORE STOP] activeSession =", activeSession);
     setError(null);
-    const uid = auth?.currentUser?.uid;
+    const uid = auth().currentUser?.uid;
     if (!uid) {
       setError("Sign in to save this focus session.");
       return 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
     const durationMinutes = Math.max(1, Math.floor(elapsedSeconds / 60));
     try {
+      const savedRaw = await AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
+      const saved = savedRaw ? JSON.parse(savedRaw) : null;
+      const groupId = saved?.groupId || null;
+
       await completeSession(uid, activeSession.sessionId, durationMinutes);
+      console.log("[STOP] completeSession finished");
+      console.log("[STOP] groupId =", groupId);
+      console.log("[STOP] uid =", uid);
+      console.log("[STOP] durationMinutes =", durationMinutes);
+
+      if (groupId) {
+              console.log("[STOP] about to call updateGroupMemberMinutes");
+              await updateGroupMemberMinutes(groupId, uid, durationMinutes);
+              console.log("[STOP] about to call updateAttendance");
+              await updateAttendance(
+                groupId,
+                uid,
+                auth().currentUser?.displayName || "User",
+                durationMinutes
+              ).catch((err: any) => {
+                console.error("[STOP] updateAttendance error:", err?.message);
+              });
+              await stopActiveFocusSession(groupId, uid).catch(() => {});
+            }
+
       setTimerState("idle");
       setElapsedSeconds(0);
       setActiveSession(null);
@@ -203,8 +291,17 @@ export function useFocusTimer() {
   }, [activeSession, elapsedSeconds]);
 
   const cancel = useCallback(async () => {
-    const uid = auth?.currentUser?.uid;
+    const uid = auth().currentUser?.uid;
     const sessionId = activeSession?.sessionId;
+    
+    const savedRaw = await AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
+    if (savedRaw) {
+      const saved: any = JSON.parse(savedRaw);
+      if (uid && saved.groupId) {
+        await stopActiveFocusSession(saved.groupId, uid).catch(() => {});
+      }
+    }
+
     setTimerState("idle");
     setElapsedSeconds(0);
     setActiveSession(null);

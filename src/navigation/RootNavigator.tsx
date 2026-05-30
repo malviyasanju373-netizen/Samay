@@ -131,7 +131,7 @@ function TabNavigator() {
 export default function RootNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MainTabs" component={TabNavigator} />
+      <Stack.Screen name="Tabs" component={TabNavigator} />
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ presentation: "modal" }} />
       <Stack.Screen name="GroupsList" component={GroupsListScreen} options={{ presentation: "modal" }} />
       <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />

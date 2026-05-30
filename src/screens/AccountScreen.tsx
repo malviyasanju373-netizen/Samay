@@ -4,7 +4,6 @@ import {
   Modal, Pressable, ActivityIndicator,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/firebase";
 import { useTheme } from "@/context/ThemeContext";
 import Ionicons from "@react-native-vector-icons/ionicons";
@@ -12,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function AccountScreen({ navigation }: any) {
   const { theme } = useTheme();
-  const user = auth?.currentUser;
+  const user = auth().currentUser;
   const s = createStyles(theme);
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -26,11 +25,10 @@ export default function AccountScreen({ navigation }: any) {
 
   const handleSendReset = async () => {
     if (!user?.email) return;
-    if (!auth) return;
     setPasswordSending(true);
     setPasswordError("");
     try {
-      await sendPasswordResetEmail(auth, user.email);
+      await auth().sendPasswordResetEmail(user.email);
       setPasswordDone(true);
     } catch (err: any) {
       setPasswordError(err.message ?? "Something went wrong.");

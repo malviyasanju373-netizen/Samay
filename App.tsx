@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useAuth } from "@/auth/useAuth";
 import AppNavigator from "@/navigation/AppNavigator";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
+import { useOnlinePresence } from "@/hooks/useOnlinePresence";
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -38,6 +39,7 @@ function AppContent() {
   console.log('[AppContent] rendering');
   const { user, loading } = useAuth();
   const { theme } = useTheme();
+  useOnlinePresence(user?.uid ?? null);
   console.log('[AppContent] auth state — loading:', loading, 'user:', user?.uid ?? 'null');
 
   if (loading) {

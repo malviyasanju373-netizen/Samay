@@ -20,7 +20,8 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.samay.app",
-      "versionCode": 1
+      "versionCode": 1,
+      "googleServicesFile": "./android/app/google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -41,6 +42,7 @@
       ],
       "expo-web-browser",
       "expo-image-picker",
+      "@react-native-firebase/app",
       "@react-native-google-signin/google-signin"
     ],
     "extra": {

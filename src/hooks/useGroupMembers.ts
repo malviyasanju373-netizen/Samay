@@ -32,7 +32,11 @@ export function useGroupMembers(groupId?: string | null) {
   }, [members, statusMap]);
 
   const leaderboard = useMemo<GroupLeaderboardEntry[]>(() => {
-    return mergedMembers.map((member, i) => ({ ...member, rank: i + 1 }));
+    const entries = mergedMembers.map((member, i) => ({ ...member, rank: i + 1 }));
+    entries.forEach((entry) => {
+      console.log(`[useGroupMembers leaderboard] rank: ${entry.rank}, uid: ${entry.uid}, rendered minutes: ${entry.totalFocusMinutes}`);
+    });
+    return entries;
   }, [mergedMembers]);
 
   useEffect(() => {
@@ -53,7 +57,7 @@ export function useGroupMembers(groupId?: string | null) {
       (m) => {
         if (!mounted) return;
         const signature = m
-          .map((member) => `${member.uid}:${member.studyTime || 0}:${member.name || member.displayName || ""}:${member.attendance || 0}:${member.isOnline ? 1 : 0}`)
+          .map((member) => `${member.uid}:${member.totalFocusMinutes || 0}:${member.name || member.displayName || ""}:${member.attendance || 0}:${member.isOnline ? 1 : 0}`)
           .join("|");
         if (signature === lastSignatureRef.current) {
           setError(null);
@@ -61,6 +65,7 @@ export function useGroupMembers(groupId?: string | null) {
           return;
         }
         lastSignatureRef.current = signature;
+        console.log(`[useGroupMembers] Members updated, signature changed. First member: uid=${m[0]?.uid}, totalFocusMinutes=${m[0]?.totalFocusMinutes}`);
         setMembers(m);
         setError(null);
         setLoading(false);

@@ -233,7 +233,7 @@ export default function GroupsListScreen({ navigation }: any) {
                   key={group.id}
                   group={group}
                   styles={s}
-                  onPress={() => safeNavigate("GroupDetail", { group: group })}
+                  onPress={() => safeNavigate("GroupDetail", { groupId: group.id })}
                 />
             )) : null
           )}

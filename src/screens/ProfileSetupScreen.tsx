@@ -1,6 +1,5 @@
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, ScrollView, Platform } from "react-native";
 import { useRef, useState } from "react";
-import { updateProfile } from "firebase/auth";
 import { auth } from "@/firebase";
 import { useTheme } from "@/context/ThemeContext";
 import AppDialog, { AppDialogButton } from "@/components/AppDialog";
@@ -32,9 +31,9 @@ export default function ProfileSetupScreen({ navigation }: any) {
     }
     try {
       setSaving(true);
-      const user = auth?.currentUser;
+      const user = auth().currentUser;
       if (!user) return;
-      await updateProfile(user, { displayName: name.trim() });
+      await user.updateProfile({ displayName: name.trim() });
       await AsyncStorage.setItem(TERMS_ACCEPTED_AT_KEY, new Date().toISOString());
       await AsyncStorage.setItem(WELCOME_BANNER_KEY, name.trim());
       await user.reload();

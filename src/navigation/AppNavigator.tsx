@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { User } from "firebase/auth";
+import type { FirebaseAuthTypes } from "@react-native-firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import AuthStack             from "@/navigation/AuthStack";
@@ -24,7 +24,7 @@ const TERMS_LAST_UPDATED = new Date("2025-05-01T00:00:00Z").getTime();
 const TERMS_ACCEPTED_AT_KEY = "TERMS_ACCEPTED_AT";
 
 export type AppNavigatorProps = {
-  user: User | null;
+  user: FirebaseAuthTypes.User | null;
   authLoading?: boolean;
 };
 
