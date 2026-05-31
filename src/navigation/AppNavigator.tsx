@@ -18,6 +18,10 @@ import LeaderboardScreen     from "@/screens/LeaderboardScreen";
 import GroupsListScreen      from "@/screens/GroupsListScreen";
 import CreateGroupScreen     from "@/screens/CreateGroupScreen";
 import GroupDetailScreen     from "@/screens/GroupDetailScreen";
+import GroupLeaderboardScreen from "@/screens/GroupLeaderboardScreen";
+import GroupMembersScreen     from "@/screens/GroupMembersScreen";
+import GroupAttendanceScreen  from "@/screens/GroupAttendanceScreen";
+import GroupChatScreen        from "@/screens/GroupChatScreen";
 import { ensureUserProfile } from "@/services/userProfile";
 
 const TERMS_LAST_UPDATED = new Date("2025-05-01T00:00:00Z").getTime();
@@ -82,6 +86,10 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
         <Stack.Screen name="GroupsList"      component={GroupsListScreen} />
         <Stack.Screen name="CreateGroup"     component={CreateGroupScreen} />
         <Stack.Screen name="GroupDetail"     component={GroupDetailScreen} />
+        <Stack.Screen name="GroupLeaderboard" component={GroupLeaderboardScreen} />
+        <Stack.Screen name="GroupMembers"    component={GroupMembersScreen} />
+        <Stack.Screen name="GroupAttendance" component={GroupAttendanceScreen} />
+        <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
       </Stack.Navigator>
     );
   }
@@ -100,6 +108,10 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
         <Stack.Screen name="GroupsList"      component={GroupsListScreen} />
         <Stack.Screen name="CreateGroup"     component={CreateGroupScreen} />
         <Stack.Screen name="GroupDetail"     component={GroupDetailScreen} />
+        <Stack.Screen name="GroupLeaderboard" component={GroupLeaderboardScreen} />
+        <Stack.Screen name="GroupMembers"    component={GroupMembersScreen} />
+        <Stack.Screen name="GroupAttendance" component={GroupAttendanceScreen} />
+        <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
       </Stack.Navigator>
     );
   }
@@ -119,6 +131,10 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
       <Stack.Screen name="GroupsList"      component={GroupsListScreen} />
       <Stack.Screen name="CreateGroup"     component={CreateGroupScreen} />
       <Stack.Screen name="GroupDetail"     component={GroupDetailScreen} />
+      <Stack.Screen name="GroupLeaderboard" component={GroupLeaderboardScreen} />
+      <Stack.Screen name="GroupMembers"    component={GroupMembersScreen} />
+      <Stack.Screen name="GroupAttendance" component={GroupAttendanceScreen} />
+      <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
     </Stack.Navigator>
   );
 };
