@@ -32,12 +32,13 @@ export default function CreateGroupScreen({ navigation }: any) {
   const photoURL = currentUser?.photoURL ?? null;
 
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [maxMembers, setMaxMembers] = useState("50");
-  const [emoji, setEmoji] = useState(EMOJIS[0]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const mountedRef = useRef(true);
+    const [description, setDescription] = useState("");
+    const [maxMembers, setMaxMembers] = useState("50");
+    const [emoji, setEmoji] = useState(EMOJIS[0]);
+    const [isPrivate, setIsPrivate] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const mountedRef = useRef(true);
   const s = useMemo(() => createStyles(theme), [theme]);
 
   // CRASH FIX: Cleanup on unmount
@@ -201,7 +202,7 @@ export default function CreateGroupScreen({ navigation }: any) {
               />
             </View>
 
-            {/* Max Members */}
+                        {/* Max Members */}
             <View style={s.section}>
               <Text style={[s.label, { color: theme.colors.text }]}>MAX MEMBERS</Text>
               <TextInput

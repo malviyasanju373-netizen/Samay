@@ -34,6 +34,7 @@ function normalizeGroup(id: string, data: Record<string, any>): Group {
     attendancePercentage: Number(data.attendancePercentage ?? 0),
     totalStudyTime: Number(data.totalStudyTime ?? 0),
     camStudyHours: Number(data.camStudyHours ?? 0),
+    isPrivate: Boolean(data.isPrivate ?? false),
   } as Group;
 }
 
@@ -70,7 +71,8 @@ export async function createGroup(
   createdBy: string,
   creatorDisplayName: string,
   creatorPhotoURL?: string | null,
-  maxMembers: number = 50
+  maxMembers: number = 50,
+  isPrivate: boolean = false
 ): Promise<Group> {
   const db = requireFirestore();
   const groupName = name.trim();
@@ -90,6 +92,7 @@ export async function createGroup(
     attendancePercentage: 0,
     totalStudyTime: 0,
     camStudyHours: 0,
+    isPrivate: !!isPrivate,
   };
 
   const groupRef = await db.collection("groups").add(groupData);
@@ -113,6 +116,7 @@ export async function createGroup(
     id: groupId,
     ...groupData,
     createdAt: firestore.Timestamp.now(),
+    isPrivate,
   } as Group;
 }
 
@@ -308,7 +312,13 @@ export async function isMemberOfGroup(groupId: string, uid: string): Promise<boo
  * Request to join a private group
  */
 export async function requestJoinGroup(groupId: string, uid: string, displayName: string): Promise<void> {
-  if (!groupId || !uid) throw new Error("Invalid groupId or userId");
+
+  const path = `groups/${groupId}/joinRequests/${uid}`;
+  console.log("[DEBUG requestJoinGroup] ENTERED — path:", path, "displayName:", displayName);
+  if (!groupId || !uid) {
+    console.log("[DEBUG requestJoinGroup] EARLY RETURN — groupId:", groupId, "uid:", uid);
+    throw new Error("Invalid groupId or userId");
+  }
   try {
     const db = requireFirestore();
     const requestRef = db.collection("groups").doc(groupId).collection("joinRequests").doc(uid);
@@ -336,6 +346,12 @@ export async function requestJoinGroup(groupId: string, uid: string, displayName
       status: "pending",
     });
   } catch (err: any) {
+    console.error("[DEBUG requestJoinGroup] FULL ERROR OBJECT:", JSON.stringify({
+      code: err.code,
+      message: err.message,
+      name: err.name,
+      stack: err.stack?.split('\n').slice(0, 3).join('\n'),
+    }, null, 2));
     console.error("[groups] requestJoinGroup error:", err?.message);
     throw err;
   }
@@ -345,16 +361,30 @@ export async function requestJoinGroup(groupId: string, uid: string, displayName
  * Check if user has pending join request
  */
 export async function hasPendingJoinRequest(groupId: string, uid: string): Promise<boolean> {
-  if (!groupId || !uid) return false;
+
+  const path = `groups/${groupId}/joinRequests/${uid}`;
+  console.log("[DEBUG hasPendingJoinRequest] ENTERED — path:", path);
+  if (!groupId || !uid) {
+    console.log("[DEBUG hasPendingJoinRequest] EARLY RETURN — groupId:", groupId, "uid:", uid);
+    return false;
+  }
   try {
+    console.log("[DEBUG hasPendingJoinRequest] EXECUTING QUERY — firestore().collection('groups').doc('" + groupId + "').collection('joinRequests').doc('" + uid + "').get()");
     const snap = await requireFirestore()
       .collection("groups")
       .doc(groupId)
       .collection("joinRequests")
       .doc(uid)
       .get();
+    console.log("[DEBUG hasPendingJoinRequest] QUERY SUCCESS — exists:", snap.exists, "data:", snap.data());
     return snap.exists() && snap.data()?.status === "pending";
   } catch (err: any) {
+    console.error("[DEBUG hasPendingJoinRequest] FULL ERROR OBJECT:", JSON.stringify({
+      code: err.code,
+      message: err.message,
+      name: err.name,
+      stack: err.stack?.split('\n').slice(0, 3).join('\n'),
+    }, null, 2));
     console.error("[groups] hasPendingJoinRequest error:", err?.message);
     return false;
   }
@@ -364,16 +394,30 @@ export async function hasPendingJoinRequest(groupId: string, uid: string): Promi
  * Get pending join requests for a group (admin only)
  */
 export async function getPendingJoinRequests(groupId: string): Promise<Array<any>> {
-  if (!groupId) return [];
+
+  const path = `groups/${groupId}/joinRequests`;
+  console.log("[DEBUG getPendingJoinRequests] ENTERED — path:", path);
+  if (!groupId) {
+    console.log("[DEBUG getPendingJoinRequests] EARLY RETURN — groupId:", groupId);
+    return [];
+  }
   try {
+    console.log("[DEBUG getPendingJoinRequests] EXECUTING QUERY — firestore().collection('groups').doc('" + groupId + "').collection('joinRequests').where('status', '==', 'pending').get()");
     const snap = await requireFirestore()
       .collection("groups")
       .doc(groupId)
       .collection("joinRequests")
       .where("status", "==", "pending")
       .get();
+    console.log("[DEBUG getPendingJoinRequests] QUERY SUCCESS — count:", snap.docs.length, "docs:", snap.docs.map(d => ({ id: d.id, ...d.data() })));
     return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
   } catch (err: any) {
+    console.error("[DEBUG getPendingJoinRequests] FULL ERROR OBJECT:", JSON.stringify({
+      code: err.code,
+      message: err.message,
+      name: err.name,
+      stack: err.stack?.split('\n').slice(0, 3).join('\n'),
+    }, null, 2));
     console.error("[groups] getPendingJoinRequests error:", err?.message);
     return [];
   }
