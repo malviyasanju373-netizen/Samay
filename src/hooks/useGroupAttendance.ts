@@ -6,6 +6,7 @@ import {
   subscribeToWeeklyAttendance,
   getGroupAttendanceSummary,
 } from "@/services/attendance";
+import { subscribeToGroupMembers } from "@/services/groups";
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -68,6 +69,7 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
     Record<string, { presentDays: number; totalDays: number; percentage: number; totalFocusMinutes: number }>
   >({});
   const [totalDays, setTotalDays] = useState(0);
+  const [groupMemberCount, setGroupMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   // ── Subscribe to today's attendance (real-time) ──
@@ -93,6 +95,25 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
   }, [groupId]);
 
   // ── Subscribe to weekly attendance (real-time, last 7 days) ──
+  useEffect(() => {
+    if (!groupId) {
+      setGroupMemberCount(0);
+      return;
+    }
+
+    const unsubscribe = subscribeToGroupMembers(
+      groupId,
+      (members) => {
+        setGroupMemberCount(Array.isArray(members) ? members.length : 0);
+      },
+      () => {
+        setGroupMemberCount(0);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [groupId]);
+
   useEffect(() => {
     if (!groupId) {
       setWeeklyData({});
@@ -153,7 +174,7 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
 
   // ── Derived: today's counts ──
   const todayPresent = todayRecords.filter((r) => r.present).length;
-  const totalMembers = todayRecords.length;
+  const totalMembers = groupMemberCount;
 
   // ── Derived: today's attendance percentage ──
   const summaryUids = Object.keys(summary);
