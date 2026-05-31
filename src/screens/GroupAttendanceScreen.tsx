@@ -7,15 +7,18 @@ import { useGroupMembers } from "@/hooks/useGroupMembers";
 import { useTheme } from "@/context/ThemeContext";
 import { LoadingState, ErrorState } from "@/components/UIStates";
 
+const WEEK_DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
 export default function GroupAttendanceScreen({ route, navigation }: any) {
   const groupId = typeof route?.params?.groupId === "string" ? route.params.groupId : "";
   const groupName = route?.params?.groupName || "Attendance";
   const { theme } = useTheme();
 
-  const { todayPresent, totalMembers, attendancePercentage, rankedMembers, loading } = useGroupAttendance(groupId);
+  const { todayPresent, totalMembers, attendancePercentage, weeklyAttendance, rankedMembers, loading } = useGroupAttendance(groupId);
   const error: string | null = null;
   const { leaderboard } = useGroupMembers(groupId); // For studying badge check
   const s = useMemo(() => createStyles(theme), [theme]);
+  const weekDateKeys = useMemo(() => Object.keys(weeklyAttendance).sort().slice(0, 7), [weeklyAttendance]);
 
   const safeGoBack = useCallback(() => {
     if (navigation?.canGoBack?.()) {
@@ -84,6 +87,38 @@ export default function GroupAttendanceScreen({ route, navigation }: any) {
           </View>
         </View>
 
+        {/* Weekly Member Attendance */}
+        {Array.isArray(rankedMembers) && rankedMembers.length > 0 ? (
+          <View style={s.weeklySection}>
+            <Text style={s.sectionTitle}>Weekly Member Attendance</Text>
+            {rankedMembers.map((member, idx) => (
+              <View key={member.uid || `weekly-${idx}`} style={s.weeklyMemberCard}>
+                <View style={s.weeklyMemberHeader}>
+                  <Text style={s.weeklyMemberName} numberOfLines={1}>
+                    {member.displayName || "User"}
+                  </Text>
+                  <Text style={s.weeklyPercent}>{member.attendancePercentage}%</Text>
+                </View>
+                <View style={s.weeklyRow}>
+                  {WEEK_DAY_LABELS.map((dayLabel, dayIndex) => {
+                    const dateKey = weekDateKeys[dayIndex];
+                    const isPresent = dateKey
+                      ? weeklyAttendance[dateKey]?.[member.uid]?.present === true
+                      : false;
+
+                    return (
+                      <View key={`${member.uid || idx}-${dayLabel}`} style={s.dayCell}>
+                        <Text style={s.dayLabel}>{dayLabel}</Text>
+                        <Text style={s.dayStatus}>{isPresent ? "🟢 Present" : "🔴 Absent"}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         {/* Attendance Ranking */}
         {Array.isArray(rankedMembers) && rankedMembers.length > 0 ? (
           <View style={s.rankingSection}>
@@ -143,6 +178,60 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.colors.card,
       borderRadius: 12,
       padding: 16,
+    },
+    weeklySection: {
+      backgroundColor: theme.colors.card,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+    },
+    weeklyMemberCard: {
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    weeklyMemberHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 10,
+      gap: 12,
+    },
+    weeklyMemberName: {
+      flex: 1,
+      fontSize: 14,
+      fontWeight: "700",
+      color: theme.colors.text,
+    },
+    weeklyPercent: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: theme.colors.primary,
+    },
+    weeklyRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+    },
+    dayCell: {
+      minWidth: 68,
+      flexGrow: 1,
+      paddingVertical: 8,
+      paddingHorizontal: 6,
+      borderRadius: 8,
+      backgroundColor: theme.colors.background,
+      alignItems: "center",
+    },
+    dayLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: theme.colors.textSecondary,
+      marginBottom: 4,
+    },
+    dayStatus: {
+      fontSize: 10,
+      fontWeight: "600",
+      color: theme.colors.text,
     },
     sectionTitle: { fontSize: 16, fontWeight: "700", color: theme.colors.text, marginBottom: 12 },
     leaderboardRow: {

@@ -55,6 +55,27 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     }
   }, [navigation]);
 
+  const handleStartGroupStudy = useCallback(() => {
+    const params = { groupId, groupName: group?.name || "Study Group" };
+    const routeNames = navigation?.getState?.()?.routeNames || [];
+    console.log("[GROUP DETAIL]", groupId, group?.name);
+
+    if (routeNames.includes("Tabs")) {
+      navigation.navigate("Tabs", { screen: "Timer", params });
+      return;
+    }
+
+    if (routeNames.includes("MainTabs")) {
+      navigation.navigate("MainTabs", {
+        screen: "Tabs",
+        params: { screen: "Timer", params },
+      });
+      return;
+    }
+
+    navigation?.navigate?.("Timer", params);
+  }, [navigation, groupId, group?.name]);
+
   const handleJoin = useCallback(async () => {
     if (!groupId) {
       Alert.alert("Error", "Group not found");
@@ -222,6 +243,17 @@ export default function GroupDetailScreen({ route, navigation }: any) {
               )}
             </TouchableOpacity>
           )}
+
+          {(isMember || isAdmin) && (
+            <TouchableOpacity
+              style={s.groupStudyBtn}
+              onPress={handleStartGroupStudy}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="play-circle" size={18} color="#fff" />
+              <Text style={s.joinBtnText}>Start Group Study</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {(isMember || isAdmin) && (
@@ -293,6 +325,16 @@ const createStyles = (theme: any) =>
     },
     joinBtnDisabled: { opacity: 0.6 },
     joinBtnText: { color: "#fff", fontWeight: "700" },
+    groupStudyBtn: {
+      backgroundColor: theme.colors.primary,
+      borderRadius: 8,
+      paddingVertical: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      marginTop: 12,
+    },
     navCardsContainer: {
       flexDirection: "row",
       flexWrap: "wrap",

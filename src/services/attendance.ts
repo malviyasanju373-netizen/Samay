@@ -2,7 +2,7 @@ import firestore from "@react-native-firebase/firestore";
 import { requireFirestore } from "@/firebase";
 
 /** Attendance Rule threshold in minutes */
-const ATTENDANCE_THRESHOLD_MINUTES = 25;
+const ATTENDANCE_THRESHOLD_MINUTES = 1;
 
 /**
  * Get today's date key in yyyy-mm-dd format

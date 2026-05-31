@@ -155,14 +155,11 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
   const todayPresent = todayRecords.filter((r) => r.present).length;
   const totalMembers = todayRecords.length;
 
-  // ── Derived: overall attendance percentage ──
+  // ── Derived: today's attendance percentage ──
   const summaryUids = Object.keys(summary);
   const attendancePercentage =
-    summaryUids.length > 0
-      ? Math.round(
-          summaryUids.reduce((sum, uid) => sum + summary[uid].percentage, 0) /
-            summaryUids.length
-        )
+    totalMembers > 0
+      ? Math.round((todayPresent / totalMembers) * 100)
       : 0;
 
   // ── Derived: ranked members ──

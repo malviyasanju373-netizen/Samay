@@ -31,6 +31,9 @@ export default function TimerScreen({ route, navigation }: any) {
   const { theme } = useTheme();
   const { timerState, minutes, seconds, progress, activeSession, error, clearError, start, pause, resume, stop, cancel } = useFocusTimer();
   const s = createStyles(theme);
+  console.log("[TIMER PARAMS]", JSON.stringify(route?.params));
+  const routeParams = route?.params ?? {};
+  const groupStudyId = routeParams.groupId ?? routeParams.params?.groupId;
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(route?.params?.categoryId ?? "other");
   const [selectedTarget, setSelectedTarget] = useState<number | null>(25);
@@ -69,6 +72,7 @@ export default function TimerScreen({ route, navigation }: any) {
 
   const handleStartPress = () => {
     if (!isIdle) return;
+    console.log("[PLAY PRESSED]");
     clearError();
     setCustomTitle(selectedCat.label);
     setShowStartModal(true);
@@ -78,7 +82,8 @@ export default function TimerScreen({ route, navigation }: any) {
     if (busy) return;
     setBusy(true);
     setShowStartModal(false);
-    await start(selectedCategoryId, customTitle.trim() || selectedCat.label, selectedTarget, route?.params?.groupId);
+    console.log("[START GROUP ID]", groupStudyId);
+    await start(selectedCategoryId, customTitle.trim() || selectedCat.label, selectedTarget, groupStudyId);
     setBusy(false);
   };
 
@@ -92,6 +97,32 @@ export default function TimerScreen({ route, navigation }: any) {
       setShowCompletionModal(true);
     }
     setBusy(false);
+  };
+
+  const handlePause = () => {
+    console.log("[PAUSE PRESSED]");
+    pause();
+  };
+
+  const handleResume = () => {
+    console.log("[PLAY PRESSED]");
+    resume();
+  };
+
+  const handleTrash = async () => {
+    if (busy) return;
+    setBusy(true);
+    console.log("[TRASH PRESSED]");
+    await cancel();
+    setCompletedMinutes(0);
+    setShowCompletionModal(false);
+    setBusy(false);
+  };
+
+  const handleDone = () => {
+    console.log("[TIMER RESET]");
+    setShowCompletionModal(false);
+    setCompletedMinutes(0);
   };
 
   return (
@@ -156,7 +187,7 @@ export default function TimerScreen({ route, navigation }: any) {
           )}
           {isRunning && (
             <>
-              <TouchableOpacity onPress={pause} style={[s.mainBtn, { backgroundColor: theme.colors.timerPaused }]} activeOpacity={0.85}>
+              <TouchableOpacity onPress={handlePause} style={[s.mainBtn, { backgroundColor: theme.colors.timerPaused }]} activeOpacity={0.85}>
                 <Ionicons name="pause" size={28} color="#fff" />
               </TouchableOpacity>
               <TouchableOpacity onPress={handleStop} disabled={busy} style={[s.stopBtn, busy && s.disabled]} activeOpacity={0.85}>
@@ -166,10 +197,10 @@ export default function TimerScreen({ route, navigation }: any) {
           )}
           {isPaused && (
             <>
-              <TouchableOpacity onPress={resume} style={[s.mainBtn, { backgroundColor: theme.colors.timerActive }]} activeOpacity={0.85}>
+              <TouchableOpacity onPress={handleResume} style={[s.mainBtn, { backgroundColor: theme.colors.timerActive }]} activeOpacity={0.85}>
                 <Ionicons name="play" size={28} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => { cancel(); }} style={s.stopBtn} activeOpacity={0.85}>
+              <TouchableOpacity onPress={handleTrash} disabled={busy} style={[s.stopBtn, busy && s.disabled]} activeOpacity={0.85}>
                 <Ionicons name="trash-outline" size={20} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </>
@@ -252,7 +283,7 @@ export default function TimerScreen({ route, navigation }: any) {
                 : `${completedMinutes}m`}
             </Text>
             <Text style={s.completionLabel}>focused</Text>
-            <TouchableOpacity onPress={() => { setShowCompletionModal(false); }} style={[s.modalBtn, { backgroundColor: theme.colors.primary, marginTop: 20 }]} activeOpacity={0.85}>
+            <TouchableOpacity onPress={handleDone} style={[s.modalBtn, { backgroundColor: theme.colors.primary, marginTop: 20 }]} activeOpacity={0.85}>
               <Text style={s.modalBtnText}>Done</Text>
             </TouchableOpacity>
           </Pressable>
