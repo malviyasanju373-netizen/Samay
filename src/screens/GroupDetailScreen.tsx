@@ -17,6 +17,24 @@ import {
 } from "@/services/groups";
 import { useTheme } from "@/context/ThemeContext";
 import { LoadingState, ErrorState } from "@/components/UIStates";
+import { formatLiveElapsedTime } from "@/utils/timeFormat";
+
+const LiveTimerText = ({ startedAt }: { startedAt: any }) => {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!startedAt) return;
+    const startMs = typeof startedAt.toDate === "function" ? startedAt.toDate().getTime() : Number(startedAt);
+    if (isNaN(startMs)) return;
+
+    const calc = () => Math.floor(Math.max(0, Date.now() - startMs) / 1000);
+    setElapsed(calc());
+    const interval = setInterval(() => setElapsed(calc()), 1000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+
+  return <Text style={{ fontSize: 14, color: "#22C55E", fontWeight: "600", marginLeft: "auto" }}>{formatLiveElapsedTime(elapsed)}</Text>;
+};
 
 export default function GroupDetailScreen({ route, navigation }: any) {
   // CRASH FIX: Type-safe route param extraction
@@ -29,6 +47,9 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     const { leaderboard, loading: membersLoading, error: membersError } = useGroupMembers(groupId);
     const { activeSessions, loading: sessionsLoading } = useGroupActiveSessions(groupId);
     const { todayPresent, totalMembers, attendancePercentage, rankedMembers, loading: attendanceLoading } = useGroupAttendance(groupId);
+
+  console.log("[ACTIVE_SESSIONS]", activeSessions);
+  console.log("[ACTIVE_SESSIONS_LENGTH]", activeSessions?.length);
   
         const [joining, setJoining] = useState(false);
         const [leaving, setLeaving] = useState(false);
@@ -252,16 +273,18 @@ export default function GroupDetailScreen({ route, navigation }: any) {
         </View>
 
         {/* Who's Studying Now - Active Sessions */}
-        {Array.isArray(activeSessions) && activeSessions.length > 0 ? (
+        {Array.isArray(leaderboard) && leaderboard.some((m) => m.isStudying) ? (
           <View style={s.activeSessionsSection}>
             <Text style={s.sectionTitle}>Who's Studying Now</Text>
-            {activeSessions.map((session, idx) => (
-                          <View key={session.userId || `session-${idx}`} style={s.leaderboardRow}>
-                            <View style={s.studyingDot} />
-                            <Text style={s.memberName}>{session.userName || "User"}</Text>
-                            <Ionicons name="timer-outline" size={14} color={theme.colors.primary} />
-              </View>
-            ))}
+            {leaderboard
+              .filter((m) => m.isStudying)
+              .map((member, idx) => (
+                <View key={member.uid || `session-${idx}`} style={s.leaderboardRow}>
+                  <View style={s.studyingDot} />
+                  <Text style={s.memberName}>{member.displayName || "User"}</Text>
+                  <LiveTimerText startedAt={(member as any).currentSessionStart} />
+                </View>
+              ))}
           </View>
         ) : null}
 
@@ -315,8 +338,14 @@ export default function GroupDetailScreen({ route, navigation }: any) {
             {leaderboard.map((member, idx) => (
               <View key={member?.uid || `member-${idx}`} style={s.leaderboardRow}>
                 <Text style={s.rankText}>{idx + 1}</Text>
+                <View style={[s.studyingDot, { backgroundColor: member?.isOnline ? '#22C55E' : '#9CA3AF' }]} />
                 <Text style={s.memberName}>{member?.displayName || "Unknown"}</Text>
-                <Text style={s.memberScore}>{member?.totalFocusMinutes || 0}h</Text>
+                {member?.isStudying && (
+                  <View style={s.studyingBadge}>
+                    <Text style={s.studyingBadgeText}>Studying</Text>
+                  </View>
+                )}
+                <Text style={s.memberScore}>{member?.totalFocusMinutes || 0}m</Text>
               </View>
             ))}
           </View>

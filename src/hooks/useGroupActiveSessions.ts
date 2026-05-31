@@ -33,8 +33,8 @@ export function useGroupActiveSessions(groupId?: string | null) {
         // Normalize the Firestore documents into ActiveSession objects
         const sessions: ActiveSession[] = docs.map((doc) => ({
           sessionId: doc.id,
-          userId: doc.userId,
-          userName: doc.userName || "User",
+         userId: doc.uid,
+         userName: doc.displayName || "User",
           isRunning: doc.isRunning ?? true,
           startedAt: doc.startedAt,
           groupId: doc.groupId,

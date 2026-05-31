@@ -27,6 +27,7 @@ export function useGroupMembers(groupId?: string | null) {
         lastActiveAtMs,
         currentSessionSubject: status?.currentSubject ?? null,
         currentSessionId: status?.currentSessionId ?? null,
+        currentSessionStart: status?.currentSessionStart ?? null,
       };
     });
   }, [members, statusMap]);
