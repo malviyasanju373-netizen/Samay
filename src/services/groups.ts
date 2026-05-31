@@ -693,7 +693,7 @@ export async function updateGroupMemberMinutes(groupId: string, uid: string, min
   }
 }
 
-function timestampToMillis(value: any): number {
+export function timestampToMillis(value: any): number {
   if (typeof value?.toDate === "function") return value.toDate().getTime();
   if (value instanceof Date) return value.getTime();
   if (typeof value === "number") return value;

@@ -1,4 +1,4 @@
-"import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator
@@ -65,7 +65,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
       <SafeAreaView style={s.container}>
         <View style={s.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-            <Ionicons name=\"chevron-back\" size={24} color={theme.colors.text} />
+            <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={s.headerTitle}>{groupName}</Text>
           <View style={{ width: 44 }} />
@@ -79,7 +79,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
     <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-          <Ionicons name=\"chevron-back\" size={24} color={theme.colors.text} />
+          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={s.headerTitle} numberOfLines={1}>{groupName}</Text>
         <View style={{ width: 44 }} />
@@ -114,7 +114,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
       >
         <TextInput
           style={[s.textInput, { backgroundColor: theme.colors.surface, color: theme.colors.text }]}
-          placeholder=\"Type a message...\"
+          placeholder="Type a message..."
           placeholderTextColor={theme.colors.textTertiary}
           value={inputText}
           onChangeText={setInputText}
@@ -127,9 +127,9 @@ export default function GroupChatScreen({ route, navigation }: any) {
           disabled={!inputText.trim() || sending}
         >
           {sending ? (
-            <ActivityIndicator size=\"small\" color=\"#fff\" />
+            <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Ionicons name=\"send\" size={20} color=\"#fff\" />
+            <Ionicons name="send" size={20} color="#fff" />
           )}
         </TouchableOpacity>
       </KeyboardAvoidingView>
@@ -163,4 +163,4 @@ const createStyles = (theme: any) => StyleSheet.create({
   sendBtnDisabled: { opacity: 0.5 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
   emptyText: { color: theme.colors.textTertiary, fontSize: 14 },
-});"
+});

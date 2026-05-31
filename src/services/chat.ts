@@ -1,4 +1,4 @@
-import firestore from '@react-native-firebase/firestore';
+import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import { auth } from '@/firebase';
 
 export interface ChatMessage {
@@ -7,7 +7,7 @@ export interface ChatMessage {
   senderId: string;
   senderName: string;
   senderPhotoURL?: string | null;
-  createdAt: firestore.Timestamp;
+  createdAt: FirebaseFirestoreTypes.Timestamp;
 }
 
 export async function sendMessage(

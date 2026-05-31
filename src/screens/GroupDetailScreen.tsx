@@ -14,11 +14,6 @@ import { useGroupAttendance } from "@/hooks/useGroupAttendance";
 import {
   joinGroup,
   leaveGroup,
-  requestJoinGroup,
-  hasPendingJoinRequest,
-  getPendingJoinRequests,
-  approveJoinRequest,
-  rejectJoinRequest,
 } from "@/services/groups";
 import { useTheme } from "@/context/ThemeContext";
 import { LoadingState, ErrorState } from "@/components/UIStates";
@@ -35,18 +30,9 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     const { activeSessions, loading: sessionsLoading } = useGroupActiveSessions(groupId);
     const { todayPresent, totalMembers, attendancePercentage, rankedMembers, loading: attendanceLoading } = useGroupAttendance(groupId);
   
-
-
-
-
-
         const [joining, setJoining] = useState(false);
         const [leaving, setLeaving] = useState(false);
         const [refreshing, setRefreshing] = useState(false);
-        const [pendingRequest, setPendingRequest] = useState(false);
-        const [pendingRequests, setPendingRequests] = useState<any[]>([]);
-        const [processingRequest, setProcessingRequest] = useState<string | null>(null);
-        const [checkingRequests, setCheckingRequests] = useState(true);
         const mountedRef = useRef(true);
         const s = useMemo(() => createStyles(theme), [theme]);
 
@@ -140,92 +126,15 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
     const isAdmin = group?.adminId === currentUid;
 
-    // Check pending request status for current user
-  useEffect(() => {
-    console.log("[DEBUG hasPendingJoinRequest] groupId:", groupId);
-    console.log("[DEBUG hasPendingJoinRequest] currentUid:", currentUid);
-    console.log("[DEBUG hasPendingJoinRequest] isMember:", isMember);
-    console.log("[DEBUG hasPendingJoinRequest] isAdmin:", isAdmin);
-    console.log("[DEBUG hasPendingJoinRequest] Firestore path querying:", `groups/${groupId}/joinRequests/${currentUid}`);
-    if (!groupId || !currentUid || isMember || isAdmin) {
-      console.log("[DEBUG hasPendingJoinRequest] Guard triggered — skipping query");
-      setCheckingRequests(false);
-      return;
-    }
-    hasPendingJoinRequest(groupId, currentUid).then((pending) => {
-      if (mountedRef.current) setPendingRequest(pending);
-    }).catch(() => {}).finally(() => {
-      if (mountedRef.current) setCheckingRequests(false);
-    });
-  }, [groupId, currentUid, isMember, isAdmin]);
-
-  // Fetch pending join requests for admin
-  useEffect(() => {
-    if (!groupId || !isAdmin) return;
-    getPendingJoinRequests(groupId).then((requests) => {
-      if (mountedRef.current) setPendingRequests(requests);
-    }).catch(() => {});
-  }, [groupId, isAdmin]);
-
-  const handleRequestToJoin = useCallback(async () => {
-    if (!groupId || !currentUid) return;
-    setJoining(true);
-    try {
-      const displayName = auth().currentUser?.displayName || "User";
-      await requestJoinGroup(groupId, currentUid, displayName);
-      if (mountedRef.current) setPendingRequest(true);
-    } catch (err: any) {
-      if (mountedRef.current) {
-        Alert.alert("Error", err?.message || "Failed to send request");
-      }
-    } finally {
-      if (mountedRef.current) setJoining(false);
-    }
-  }, [groupId, currentUid]);
-
-  const handleApproveRequest = useCallback(async (requestUid: string, requestDisplayName: string) => {
-    if (!groupId) return;
-    setProcessingRequest(requestUid);
-    try {
-      await approveJoinRequest(groupId, requestUid, requestDisplayName);
-      if (mountedRef.current) {
-        setPendingRequests((prev) => prev.filter((r) => r.uid !== requestUid));
-      }
-    } catch (err: any) {
-      Alert.alert("Error", err?.message || "Failed to approve");
-    } finally {
-      if (mountedRef.current) setProcessingRequest(null);
-    }
-  }, [groupId]);
-
-  const handleRejectRequest = useCallback(async (requestUid: string) => {
-    if (!groupId) return;
-    setProcessingRequest(requestUid);
-    try {
-      await rejectJoinRequest(groupId, requestUid);
-      if (mountedRef.current) {
-        setPendingRequests((prev) => prev.filter((r) => r.uid !== requestUid));
-      }
-    } catch (err: any) {
-      Alert.alert("Error", err?.message || "Failed to reject");
-    } finally {
-      if (mountedRef.current) setProcessingRequest(null);
-    }
-  }, [groupId]);
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       // Refresh is automatic via subscriptions
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      if (isAdmin && groupId) {
-        const requests = await getPendingJoinRequests(groupId);
-        if (mountedRef.current) setPendingRequests(requests);
-      }
     } finally {
       if (mountedRef.current) setRefreshing(false);
     }
-  }, [isAdmin, groupId]);
+  }, []);
 
   // CRASH FIX: Show proper states
   if (loading) {
@@ -314,86 +223,33 @@ export default function GroupDetailScreen({ route, navigation }: any) {
             </View>
           </View>
 
-                    {!isMember && !isAdmin && (
-            group?.isPrivate ? (
-              pendingRequest ? (
-                <View style={[s.joinBtn, s.joinBtnDisabled, { backgroundColor: theme.colors.textTertiary }]}>
-                  <Ionicons name="time-outline" size={16} color="#fff" />
-                  <Text style={s.joinBtnText}>Request Pending</Text>
-                </View>
+          {!isMember && !isAdmin && (
+            <TouchableOpacity
+              style={[s.joinBtn, joining && s.joinBtnDisabled]}
+              onPress={handleJoin}
+              disabled={joining}
+            >
+              {joining ? (
+                <ActivityIndicator color="#fff" />
               ) : (
-                <TouchableOpacity
-                  style={[s.joinBtn, joining && s.joinBtnDisabled]}
-                  onPress={handleRequestToJoin}
-                  disabled={joining || checkingRequests}
-                >
-                  {joining ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <>
-                      <Ionicons name="person-add" size={16} color="#fff" />
-                      <Text style={s.joinBtnText}>Request to Join</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )
-            ) : (
-              <TouchableOpacity
-                style={[s.joinBtn, joining && s.joinBtnDisabled]}
-                onPress={handleJoin}
-                disabled={joining}
-              >
-                {joining ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="person-add" size={16} color="#fff" />
-                    <Text style={s.joinBtnText}>Join Group</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )
+                <>
+                  <Ionicons name="person-add" size={16} color="#fff" />
+                  <Text style={s.joinBtnText}>Join Group</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+          
+          {(isMember || isAdmin) && (
+            <TouchableOpacity
+              style={[s.joinBtn, { marginTop: 12 }]}
+              onPress={() => safeNavigate("GroupChat", { groupId, groupName: group?.name })}
+            >
+              <Ionicons name="chatbubbles-outline" size={16} color="#fff" />
+              <Text style={s.joinBtnText}>Group Chat</Text>
+            </TouchableOpacity>
           )}
         </View>
-
-                {/* Pending Requests for Admins */}
-        {isAdmin && pendingRequests.length > 0 && (
-          <View style={s.pendingRequestsSection}>
-            <Text style={s.sectionTitle}>Pending Requests ({pendingRequests.length})</Text>
-            {pendingRequests.map((request) => (
-              <View key={request.uid} style={s.requestRow}>
-                <View style={s.requestInfo}>
-                  <Ionicons name="person-outline" size={16} color={theme.colors.text} />
-                  <Text style={s.requestName}>{request.displayName || "User"}</Text>
-                </View>
-                <View style={s.requestActions}>
-                  <TouchableOpacity
-                    style={s.approveBtn}
-                    onPress={() => handleApproveRequest(request.uid, request.displayName || "User")}
-                    disabled={processingRequest === request.uid}
-                  >
-                    {processingRequest === request.uid ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={s.approveBtnText}>Accept</Text>
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.rejectBtn}
-                    onPress={() => handleRejectRequest(request.uid)}
-                    disabled={processingRequest === request.uid}
-                  >
-                    {processingRequest === request.uid ? (
-                      <ActivityIndicator size="small" color={theme.colors.text} />
-                    ) : (
-                      <Text style={s.rejectBtnText}>Decline</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
 
         {/* Who's Studying Now - Active Sessions */}
         {Array.isArray(activeSessions) && activeSessions.length > 0 ? (
@@ -511,64 +367,6 @@ const createStyles = (theme: any) =>
     },
     joinBtnDisabled: { opacity: 0.6 },
     joinBtnText: { color: "#fff", fontWeight: "700" },
-        // Pending Requests styles
-    pendingRequestsSection: {
-      backgroundColor: theme.colors.card,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 16,
-    },
-    requestRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    requestInfo: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      flex: 1,
-    },
-    requestName: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.colors.text,
-    },
-    requestActions: {
-      flexDirection: "row",
-      gap: 8,
-    },
-    approveBtn: {
-      backgroundColor: "#22C55E",
-      borderRadius: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      minWidth: 64,
-      alignItems: "center",
-    },
-    approveBtnText: {
-      color: "#fff",
-      fontSize: 12,
-      fontWeight: "700",
-    },
-    rejectBtn: {
-      backgroundColor: "transparent",
-      borderRadius: 6,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      minWidth: 64,
-      alignItems: "center",
-    },
-    rejectBtnText: {
-      color: theme.colors.text,
-      fontSize: 12,
-      fontWeight: "700",
-    },
     // Active Sessions styles
     activeSessionsSection: {
       backgroundColor: theme.colors.card,

@@ -1,4 +1,4 @@
-"import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { subscribeToMessages, sendMessage as sendMessageApi, ChatMessage } from '@/services/chat';
 
 interface UseGroupChatReturn {
@@ -58,4 +58,4 @@ export function useGroupChat(groupId: string): UseGroupChatReturn {
   );
 
   return { messages, loading, error, sendMessage };
-}"
+}
