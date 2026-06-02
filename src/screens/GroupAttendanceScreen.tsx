@@ -9,6 +9,21 @@ import { LoadingState, ErrorState } from "@/components/UIStates";
 
 const WEEK_DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+type NavCard = {
+  title: string;
+  icon: string;
+  route: string;
+  color: string;
+};
+
+const NAV_CARDS: NavCard[] = [
+  { title: "Attendance Champions", icon: "trophy", route: "GroupAttendanceChampions", color: "#F59E0B" },
+  { title: "Attendance Streaks", icon: "flame", route: "GroupAttendanceStreaks", color: "#F97316" },
+  { title: "Weekly Report", icon: "calendar", route: "GroupWeeklyAttendance", color: "#38BDF8" },
+  { title: "Monthly Report", icon: "stats-chart", route: "GroupMonthlyAttendance", color: "#A78BFA" },
+  { title: "Member Attendance", icon: "people", route: "GroupMemberAttendance", color: "#22C55E" },
+];
+
 export default function GroupAttendanceScreen({ route, navigation }: any) {
   const groupId = typeof route?.params?.groupId === "string" ? route.params.groupId : "";
   const groupName = route?.params?.groupName || "Attendance";
@@ -16,7 +31,7 @@ export default function GroupAttendanceScreen({ route, navigation }: any) {
 
   const { todayPresent, totalMembers, attendancePercentage, weeklyAttendance, rankedMembers, loading } = useGroupAttendance(groupId);
   const error: string | null = null;
-  const { leaderboard } = useGroupMembers(groupId); // For studying badge check
+  const { leaderboard } = useGroupMembers(groupId);
   const s = useMemo(() => createStyles(theme), [theme]);
   const weekDateKeys = useMemo(() => Object.keys(weeklyAttendance).sort().slice(0, 7), [weeklyAttendance]);
 
@@ -27,6 +42,13 @@ export default function GroupAttendanceScreen({ route, navigation }: any) {
     }
     navigation?.navigate?.("GroupDetail", { groupId });
   }, [navigation, groupId]);
+
+  const navigateTo = useCallback(
+    (routeName: string) => {
+      navigation?.navigate?.(routeName, { groupId, groupName });
+    },
+    [navigation, groupId, groupName]
+  );
 
   if (loading) {
     return (
@@ -64,27 +86,49 @@ export default function GroupAttendanceScreen({ route, navigation }: any) {
         <TouchableOpacity onPress={safeGoBack} style={s.backBtn}>
           <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle} numberOfLines={1}>{groupName} Attendance</Text>
+        <Text style={s.headerTitle} numberOfLines={1}>{groupName}</Text>
         <View style={{ width: 44 }} />
       </View>
       <ScrollView style={s.content} contentContainerStyle={s.scrollContent}>
-        {/* Attendance Card */}
+        {/* Today's Attendance Card */}
         <View style={s.attendanceCard}>
           <Text style={s.sectionTitle}>Today's Attendance</Text>
           <View style={s.attendanceStats}>
             <View style={s.statItem}>
-              <Text style={s.statLabel}>Present</Text>
+              <Ionicons name="checkmark-circle" size={22} color={theme.colors.success} />
               <Text style={s.statValue}>{todayPresent}</Text>
+              <Text style={s.statLabel}>Present</Text>
             </View>
             <View style={s.statItem}>
-              <Text style={s.statLabel}>Total</Text>
+              <Ionicons name="people" size={22} color={theme.colors.primary} />
               <Text style={s.statValue}>{totalMembers}</Text>
+              <Text style={s.statLabel}>Total</Text>
             </View>
             <View style={s.statItem}>
-              <Text style={s.statLabel}>Rate</Text>
+              <Ionicons name="analytics" size={22} color={theme.colors.accent2} />
               <Text style={s.statValue}>{attendancePercentage}%</Text>
+              <Text style={s.statLabel}>Rate</Text>
             </View>
           </View>
+        </View>
+
+        {/* Dashboard Navigation Cards */}
+        <Text style={s.sectionTitle}>Quick Navigation</Text>
+        <View style={s.navGrid}>
+          {NAV_CARDS.map((card) => (
+            <TouchableOpacity
+              key={card.route}
+              style={s.navCard}
+              activeOpacity={0.7}
+              onPress={() => navigateTo(card.route)}
+            >
+              <View style={[s.navIconWrapper, { backgroundColor: card.color + "20" }]}>
+                <Ionicons name={card.icon as any} size={24} color={card.color} />
+              </View>
+              <Text style={s.navCardTitle}>{card.title}</Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Weekly Member Attendance */}
@@ -109,7 +153,7 @@ export default function GroupAttendanceScreen({ route, navigation }: any) {
                     return (
                       <View key={`${member.uid || idx}-${dayLabel}`} style={s.dayCell}>
                         <Text style={s.dayLabel}>{dayLabel}</Text>
-                        <Text style={s.dayStatus}>{isPresent ? "🟢 Present" : "🔴 Absent"}</Text>
+                        <Text style={s.dayStatus}>{isPresent ? "🟢" : "🔴"}</Text>
                       </View>
                     );
                   })}
@@ -125,7 +169,7 @@ export default function GroupAttendanceScreen({ route, navigation }: any) {
             <Text style={s.sectionTitle}>Attendance Ranking</Text>
             {rankedMembers.map((member, idx) => {
               const isStudying = Array.isArray(leaderboard) && leaderboard.some(
-                (lm) => lm.uid === member.uid && lm.isStudying
+                (lm: any) => lm.uid === member.uid && lm.isStudying
               );
               return (
                 <View key={member.uid || `rank-${idx}`} style={s.leaderboardRow}>
@@ -156,24 +200,56 @@ const createStyles = (theme: any) =>
       paddingHorizontal: 16, 
       paddingVertical: 12,
       backgroundColor: theme.colors.card,
-    },
-    backBtn: { width: 44, height: 44, justifyContent: "center" },
+            borderBottomWidth: 1,
+            borderBottomColor: theme.colors.border,
+          },
+          backBtn: { width: 44, height: 44, justifyContent: "center" },
     headerTitle: { fontSize: 18, fontWeight: "700", color: theme.colors.text, flex: 1 },
     content: { flex: 1 },
-    scrollContent: { padding: 16 },
+    scrollContent: { padding: 16, paddingBottom: 32 },
     attendanceCard: {
-      backgroundColor: theme.colors.card,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 16,
-    },
-    attendanceStats: {
-      flexDirection: "row",
-      justifyContent: "space-around",
-    },
-    statItem: { alignItems: "center" },
-    statLabel: { fontSize: 12, color: theme.colors.textTertiary },
-    statValue: { fontSize: 18, fontWeight: "700", color: theme.colors.primary },
+          backgroundColor: theme.colors.card,
+          borderRadius: 12,
+          padding: 20,
+          marginBottom: 16,
+        },
+        attendanceStats: {
+          flexDirection: "row",
+          justifyContent: "space-around",
+          alignItems: "center",
+          marginTop: 8,
+        },
+        statItem: { alignItems: "center", gap: 4 },
+        statLabel: { fontSize: 12, color: theme.colors.textTertiary, fontWeight: "500" },
+        statValue: { fontSize: 22, fontWeight: "700", color: theme.colors.text },
+        // Navigation cards
+        navGrid: {
+          gap: 10,
+          marginBottom: 20,
+        },
+        navCard: {
+          backgroundColor: theme.colors.card,
+          borderRadius: 12,
+          padding: 14,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          borderWidth: 1,
+          borderColor: theme.colors.border,
+        },
+        navIconWrapper: {
+          width: 40,
+          height: 40,
+          borderRadius: 10,
+          justifyContent: "center",
+          alignItems: "center",
+        },
+        navCardTitle: {
+          flex: 1,
+          fontSize: 15,
+          fontWeight: "600",
+          color: theme.colors.text,
+        },
     rankingSection: {
       backgroundColor: theme.colors.card,
       borderRadius: 12,

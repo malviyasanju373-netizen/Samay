@@ -400,13 +400,20 @@ export async function getGroupAttendanceSummary(
       .collection("attendance")
       .get();
 
+    console.log("[ATTENDANCE DOCS]", attendanceDates.size);
+
     const totalDays = attendanceDates.docs.length;
-    if (totalDays === 0) return {};
+    if (totalDays === 0) {
+      console.log("[getGroupAttendanceSummary] No attendance docs found");
+      return {};
+    }
 
     const memberSummary: Record<string, { presentDays: number; totalDays: number; percentage: number; totalFocusMinutes: number }> = {};
 
     for (const dateDoc of attendanceDates.docs) {
+      console.log("[DATE DOC ID]", dateDoc.id);
       const membersSnap = await dateDoc.ref.collection("members").get();
+      console.log("[MEMBERS COUNT]", membersSnap.size);
       membersSnap.docs.forEach((memberDoc) => {
         const data = memberDoc.data();
         const uid = memberDoc.id;

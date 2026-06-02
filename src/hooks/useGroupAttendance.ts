@@ -33,6 +33,11 @@ export type RankedMember = {
   totalFocusMinutes: number;
 };
 
+type GroupMember = {
+  uid: string;
+  displayName: string;
+};
+
 export type GroupAttendanceData = {
   /** Number of members present today */
   todayPresent: number;
@@ -68,6 +73,7 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
   const [summary, setSummary] = useState<
     Record<string, { presentDays: number; totalDays: number; percentage: number; totalFocusMinutes: number }>
   >({});
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [totalDays, setTotalDays] = useState(0);
   const [groupMemberCount, setGroupMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -98,16 +104,28 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
   useEffect(() => {
     if (!groupId) {
       setGroupMemberCount(0);
+      setGroupMembers([]);
       return;
     }
 
     const unsubscribe = subscribeToGroupMembers(
       groupId,
       (members) => {
+        const normalizedMembers = Array.isArray(members)
+          ? members
+              .map((member: any) => ({
+                uid: member.uid ?? member.id ?? "",
+                displayName: member.displayName ?? member.name ?? "User",
+              }))
+              .filter((member) => member.uid)
+          : [];
+
+        setGroupMembers(normalizedMembers);
         setGroupMemberCount(Array.isArray(members) ? members.length : 0);
       },
       () => {
         setGroupMemberCount(0);
+        setGroupMembers([]);
       }
     );
 
@@ -184,38 +202,64 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
       : 0;
 
   // ── Derived: ranked members ──
-  const rankedMembers: RankedMember[] = summaryUids
-    .map((uid) => ({
-      uid,
-      displayName: "User",
-    }))
-    .map((member) => {
-      // Try to get displayName from weeklyData as fallback
-      let displayName = member.displayName;
-      for (const dateKey of Object.keys(weeklyData)) {
-        const dayData = weeklyData[dateKey][member.uid];
-        if (dayData?.displayName) {
-          displayName = dayData.displayName;
-          break;
-        }
-      }
-      // Also check todayRecords
-      const todayRecord = todayRecords.find((r) => r.uid === member.uid);
-      if (todayRecord) {
-        displayName = todayRecord.displayName;
-      }
+  const fallbackChampionsUsed = summaryUids.length === 0 && todayRecords.length > 0;
+  const rankedMembers: RankedMember[] = fallbackChampionsUsed
+    ? groupMembers
+        .map((member) => {
+          const todayRecord = todayRecords.find((r) => r.uid === member.uid);
+          const present = todayRecord?.present ?? false;
 
-      const s = summary[member.uid];
-      return {
-        uid: member.uid,
-        displayName,
-        attendancePercentage: s.percentage,
-        presentDays: s.presentDays,
-        totalDays: s.totalDays,
-        totalFocusMinutes: s.totalFocusMinutes,
-      };
-    })
-    .sort((a, b) => b.attendancePercentage - a.attendancePercentage);
+          return {
+            uid: member.uid,
+            displayName: todayRecord?.displayName ?? member.displayName,
+            attendancePercentage: present ? 100 : 0,
+            presentDays: present ? 1 : 0,
+            totalDays: 1,
+            totalFocusMinutes: todayRecord?.focusMinutes ?? 0,
+          };
+        })
+        .sort((a, b) => b.attendancePercentage - a.attendancePercentage)
+    : summaryUids
+        .map((uid) => ({
+          uid,
+          displayName: "User",
+        }))
+        .map((member) => {
+          let displayName = member.displayName;
+          for (const dateKey of Object.keys(weeklyData)) {
+            const dayData = weeklyData[dateKey][member.uid];
+            if (dayData?.displayName) {
+              displayName = dayData.displayName;
+              break;
+            }
+          }
+          const todayRecord = todayRecords.find((r) => r.uid === member.uid);
+          if (todayRecord) {
+            displayName = todayRecord.displayName;
+          }
+
+          const s = summary[member.uid];
+          return {
+            uid: member.uid,
+            displayName,
+            attendancePercentage: s.percentage,
+            presentDays: s.presentDays,
+            totalDays: s.totalDays,
+            totalFocusMinutes: s.totalFocusMinutes,
+          };
+        })
+        .sort((a, b) => b.attendancePercentage - a.attendancePercentage);
+
+  // ── Diagnostic logs ──
+  console.log("[TODAY RECORDS]", todayRecords);
+  console.log("[SUMMARY]", summary);
+  console.log("[SUMMARY UIDS]", Object.keys(summary));
+  console.log("[RANKED MEMBERS]", rankedMembers);
+  console.log("[FALLBACK CHAMPIONS USED]", fallbackChampionsUsed);
+  console.log("[FALLBACK MEMBERS COUNT]", fallbackChampionsUsed ? rankedMembers.length : 0);
+  console.log("[TRACKED DAYS]", totalDays);
+  console.log("[RANKED MEMBERS LENGTH]", rankedMembers.length);
+  console.log("[SUMMARY UID COUNT]", Object.keys(summary).length);
 
   return {
     todayPresent,

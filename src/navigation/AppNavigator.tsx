@@ -21,6 +21,7 @@ import GroupDetailScreen     from "@/screens/GroupDetailScreen";
 import GroupLeaderboardScreen from "@/screens/GroupLeaderboardScreen";
 import GroupMembersScreen     from "@/screens/GroupMembersScreen";
 import GroupAttendanceScreen  from "@/screens/GroupAttendanceScreen";
+import GroupAttendanceChampionsScreen  from "@/screens/GroupAttendanceChampionsScreen";
 import GroupChatScreen        from "@/screens/GroupChatScreen";
 import { ensureUserProfile } from "@/services/userProfile";
 
@@ -89,10 +90,11 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
         <Stack.Screen name="GroupLeaderboard" component={GroupLeaderboardScreen} />
         <Stack.Screen name="GroupMembers"    component={GroupMembersScreen} />
         <Stack.Screen name="GroupAttendance" component={GroupAttendanceScreen} />
-        <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
-      </Stack.Navigator>
-    );
-  }
+                <Stack.Screen name="GroupAttendanceChampions" component={GroupAttendanceChampionsScreen} />
+                <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
+              </Stack.Navigator>
+            );
+          }
 
   if (checkedTerms && needsTerms) {
     return (
@@ -111,10 +113,11 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
         <Stack.Screen name="GroupLeaderboard" component={GroupLeaderboardScreen} />
         <Stack.Screen name="GroupMembers"    component={GroupMembersScreen} />
         <Stack.Screen name="GroupAttendance" component={GroupAttendanceScreen} />
-        <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
-      </Stack.Navigator>
-    );
-  }
+                <Stack.Screen name="GroupAttendanceChampions" component={GroupAttendanceChampionsScreen} />
+                <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
+              </Stack.Navigator>
+            );
+          }
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -134,9 +137,10 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
       <Stack.Screen name="GroupLeaderboard" component={GroupLeaderboardScreen} />
       <Stack.Screen name="GroupMembers"    component={GroupMembersScreen} />
       <Stack.Screen name="GroupAttendance" component={GroupAttendanceScreen} />
-      <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
-    </Stack.Navigator>
-  );
-};
+              <Stack.Screen name="GroupAttendanceChampions" component={GroupAttendanceChampionsScreen} />
+              <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
+            </Stack.Navigator>
+          );
+        };
 
 export default AppNavigator;
