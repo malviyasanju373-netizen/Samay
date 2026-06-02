@@ -1,6 +1,7 @@
 import firestore from "@react-native-firebase/firestore";
 import { requireFirestore } from "@/firebase";
 import { FocusSession } from "@/types/session";
+import { getGroupMembers } from "@/services/groups";
 
 const STUDYING_STALE_MS = 90 * 1000;
 
@@ -135,6 +136,22 @@ export async function completeSession(uid: string, sessionId: string, durationMi
         uid,
         totalFocusMinutes: userData?.totalFocusMinutes,
       });
+    }
+
+    // Recalculate total study time for all groups the user belongs to
+    try {
+      const memberDocs = await db.collectionGroup("members").where("uid", "==", uid).get();
+      const groupIds = Array.from(new Set(memberDocs.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean))) as string[];
+      for (const groupId of groupIds) {
+        const members = await getGroupMembers(groupId);
+        const totalTime = members.reduce((sum, m) => sum + (m.totalFocusMinutes || 0), 0);
+        // Save to groups/{groupId}.totalStudyTime as hours
+        await db.collection("groups").doc(groupId).update({
+          totalStudyTime: Math.round(totalTime / 60)
+        });
+      }
+    } catch (err: any) {
+      console.error("[completeSession] failed to update group totalStudyTime:", err?.message);
     }
   }
 }

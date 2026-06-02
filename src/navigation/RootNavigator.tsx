@@ -22,6 +22,7 @@ import TermsScreen          from "@/screens/TermsScreen";
 import PrivacySecurityScreen from "@/screens/PrivacySecurityScreen";
 import GeneralFeedbackScreen from "@/screens/GeneralFeedbackScreen";
 import GroupChatScreen      from "@/screens/GroupChatScreen";
+import CamStudyComingSoonScreen from "@/screens/CamStudyComingSoonScreen";
 
 const Tab   = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -145,6 +146,7 @@ export default function RootNavigator() {
       <Stack.Screen name="PrivacySecurity"  component={PrivacySecurityScreen} />
       <Stack.Screen name="GeneralFeedback"  component={GeneralFeedbackScreen} />
       <Stack.Screen name="GroupChat"        component={GroupChatScreen} />
+      <Stack.Screen name="CamStudyComingSoon" component={CamStudyComingSoonScreen} />
     </Stack.Navigator>
   );
 }

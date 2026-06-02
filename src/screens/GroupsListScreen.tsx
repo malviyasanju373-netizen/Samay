@@ -16,14 +16,13 @@ interface EnhancedGroup extends Group {
   categories?: string[];
   attendancePercentage: number;
   totalStudyTime: number;
-  camStudyHours: number;
 }
 
 const TAB_CONFIG = [
   { label: "New", sortKey: "createdAt" },
   { label: "Attendance", sortKey: "attendancePercentage" },
   { label: "Studytime", sortKey: "totalStudyTime" },
-  { label: "Cam Study", sortKey: "camStudyHours" },
+  { label: "Cam Study", sortKey: "createdAt" }, // sortKey unused for this tab
 ] as const;
 
 type TabLabel = typeof TAB_CONFIG[number]["label"];
@@ -60,7 +59,6 @@ export default function GroupsListScreen({ navigation }: any) {
         ...g,
         attendancePercentage: g.attendancePercentage ?? 0,
         totalStudyTime: g.totalStudyTime ?? 0,
-        camStudyHours: g.camStudyHours ?? 0,
       }));
       setGroups(enhanced);
       setError(null);
@@ -106,6 +104,11 @@ export default function GroupsListScreen({ navigation }: any) {
   }, []);
 
   const handleTabPress = useCallback((tab: TabLabel) => {
+    if (tab === "Cam Study") {
+      safeNavigate("CamStudyComingSoon");
+      return;
+    }
+
     if (activeTab === tab || !mountedRef.current) return;
 
     Animated.timing(contentOpacity, {
@@ -286,10 +289,6 @@ const GroupCard = memo(function GroupCard({
           <View style={styles.groupStatItem}>
             <Ionicons name="time" size={14} color="#FBBF24" />
             <Text style={styles.groupStatText}>{group.totalStudyTime ?? 0}h</Text>
-          </View>
-          <View style={styles.groupStatItem}>
-            <Ionicons name="videocam" size={14} color="#38BDF8" />
-            <Text style={styles.groupStatText}>{group.camStudyHours ?? 0}h</Text>
           </View>
       </View>
     </TouchableOpacity>

@@ -94,6 +94,20 @@ export async function updateAttendance(
       },
       { merge: true }
     );
+
+    // Recalculate group attendance percentage
+    const summary = await getGroupAttendanceSummary(groupId);
+    const uids = Object.keys(summary);
+    if (uids.length > 0) {
+      let totalPercentage = 0;
+      uids.forEach(u => {
+        totalPercentage += summary[u].percentage;
+      });
+      const groupAttendancePercentage = Math.round(totalPercentage / uids.length);
+      await db.collection("groups").doc(groupId).update({
+        attendancePercentage: groupAttendancePercentage
+      });
+    }
   } catch (err: any) {
     console.error("[updateAttendance] ERROR:", err?.message);
   }
