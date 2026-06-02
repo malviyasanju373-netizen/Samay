@@ -88,14 +88,15 @@ export default function CreateGroupScreen({ navigation }: any) {
     setError(null);
 
     try {
-      // CRASH FIX: Use correct API signature (6 separate params)
+      // CRASH FIX: Use correct API signature (7 separate params including isPrivate)
       const group = await createGroup(
         name.trim(),
         description.trim(),
         currentUid,
         displayName,
         photoURL,
-        Math.min(Math.max(parsedMax, 1), 500)
+        Math.min(Math.max(parsedMax, 1), 500),
+        isPrivate
       );
 
       if (!mountedRef.current) return;
@@ -120,7 +121,7 @@ export default function CreateGroupScreen({ navigation }: any) {
         setLoading(false);
       }
     }
-  }, [name, description, maxMembers, currentUid, displayName, photoURL, loading, navigation]);
+  }, [name, description, maxMembers, isPrivate, currentUid, displayName, photoURL, loading, navigation]);
 
   return (
     <SafeAreaView style={[s.container, { backgroundColor: theme.colors.background }]}>
@@ -214,6 +215,43 @@ export default function CreateGroupScreen({ navigation }: any) {
                 keyboardType="number-pad"
                 editable={!loading}
               />
+            </View>
+
+            {/* Privacy Setting */}
+            <View style={s.section}>
+              <Text style={[s.label, { color: theme.colors.text }]}>PRIVACY</Text>
+              <View style={s.privacyContainer}>
+                <TouchableOpacity
+                  style={[
+                    s.privacyOption,
+                    !isPrivate && [s.privacyOptionSelected, { borderColor: theme.colors.primary }],
+                  ]}
+                  onPress={() => setIsPrivate(false)}
+                >
+                  <Ionicons name="globe-outline" size={18} color={!isPrivate ? theme.colors.primary : theme.colors.textSecondary} />
+                  <Text style={[s.privacyOptionText, { color: !isPrivate ? theme.colors.primary : theme.colors.textSecondary }]}>
+                    Public
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    s.privacyOption,
+                    isPrivate && [s.privacyOptionSelected, { borderColor: theme.colors.primary }],
+                  ]}
+                  onPress={() => setIsPrivate(true)}
+                >
+                  <Ionicons name="lock-closed-outline" size={18} color={isPrivate ? theme.colors.primary : theme.colors.textSecondary} />
+                  <Text style={[s.privacyOptionText, { color: isPrivate ? theme.colors.primary : theme.colors.textSecondary }]}>
+                    Private
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {isPrivate && (
+                <Text style={[s.privacyInfo, { color: theme.colors.textSecondary }]}>
+                  Users must request to join this group
+                </Text>
+              )}
             </View>
 
             {/* Create Button */}
@@ -335,5 +373,35 @@ const createStyles = (theme: any) =>
       flex: 1,
       fontSize: 13,
       fontWeight: "500",
+    },
+    privacyContainer: {
+      flexDirection: "row",
+      gap: 12,
+    },
+    privacyOption: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 2,
+      borderColor: theme.colors.border,
+    },
+    privacyOptionSelected: {
+      borderWidth: 2,
+      backgroundColor: theme.colors.primary + "10",
+    },
+    privacyOptionText: {
+      fontWeight: "600",
+      fontSize: 14,
+    },
+    privacyInfo: {
+      fontSize: 12,
+      marginTop: 8,
+      fontStyle: "italic",
     },
   });

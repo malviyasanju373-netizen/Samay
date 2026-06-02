@@ -27,6 +27,7 @@ import GroupWeeklyAttendanceScreen  from "@/screens/GroupWeeklyAttendanceScreen"
 import GroupMonthlyAttendanceScreen  from "@/screens/GroupMonthlyAttendanceScreen";
 import GroupMemberAttendanceScreen  from "@/screens/GroupMemberAttendanceScreen";
 import GroupChatScreen        from "@/screens/GroupChatScreen";
+import PendingRequestsScreen  from "@/screens/PendingRequestsScreen";
 import { ensureUserProfile } from "@/services/userProfile";
 
 const TERMS_LAST_UPDATED = new Date("2025-05-01T00:00:00Z").getTime();
@@ -100,6 +101,7 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
                 <Stack.Screen name="GroupMonthlyAttendance" component={GroupMonthlyAttendanceScreen} />
                 <Stack.Screen name="GroupMemberAttendance" component={GroupMemberAttendanceScreen} />
                 <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
+                <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
               </Stack.Navigator>
             );
           }
@@ -127,6 +129,7 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
                 <Stack.Screen name="GroupMonthlyAttendance" component={GroupMonthlyAttendanceScreen} />
                 <Stack.Screen name="GroupMemberAttendance" component={GroupMemberAttendanceScreen} />
                 <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
+                <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
               </Stack.Navigator>
             );
           }
@@ -155,6 +158,7 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
               <Stack.Screen name="GroupMonthlyAttendance" component={GroupMonthlyAttendanceScreen} />
               <Stack.Screen name="GroupMemberAttendance" component={GroupMemberAttendanceScreen} />
               <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
+              <Stack.Screen name="PendingRequests" component={PendingRequestsScreen} />
             </Stack.Navigator>
           );
         };
