@@ -25,6 +25,7 @@ import GroupAttendanceChampionsScreen  from "@/screens/GroupAttendanceChampionsS
 import GroupAttendanceStreaksScreen  from "@/screens/GroupAttendanceStreaksScreen";
 import GroupWeeklyAttendanceScreen  from "@/screens/GroupWeeklyAttendanceScreen";
 import GroupMonthlyAttendanceScreen  from "@/screens/GroupMonthlyAttendanceScreen";
+import GroupMemberAttendanceScreen  from "@/screens/GroupMemberAttendanceScreen";
 import GroupChatScreen        from "@/screens/GroupChatScreen";
 import { ensureUserProfile } from "@/services/userProfile";
 
@@ -97,6 +98,7 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
                 <Stack.Screen name="GroupAttendanceStreaks" component={GroupAttendanceStreaksScreen} />
                 <Stack.Screen name="GroupWeeklyAttendance" component={GroupWeeklyAttendanceScreen} />
                 <Stack.Screen name="GroupMonthlyAttendance" component={GroupMonthlyAttendanceScreen} />
+                <Stack.Screen name="GroupMemberAttendance" component={GroupMemberAttendanceScreen} />
                 <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
               </Stack.Navigator>
             );
@@ -123,6 +125,7 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
                 <Stack.Screen name="GroupAttendanceStreaks" component={GroupAttendanceStreaksScreen} />
                 <Stack.Screen name="GroupWeeklyAttendance" component={GroupWeeklyAttendanceScreen} />
                 <Stack.Screen name="GroupMonthlyAttendance" component={GroupMonthlyAttendanceScreen} />
+                <Stack.Screen name="GroupMemberAttendance" component={GroupMemberAttendanceScreen} />
                 <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
               </Stack.Navigator>
             );
@@ -150,6 +153,7 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
               <Stack.Screen name="GroupAttendanceStreaks" component={GroupAttendanceStreaksScreen} />
               <Stack.Screen name="GroupWeeklyAttendance" component={GroupWeeklyAttendanceScreen} />
               <Stack.Screen name="GroupMonthlyAttendance" component={GroupMonthlyAttendanceScreen} />
+              <Stack.Screen name="GroupMemberAttendance" component={GroupMemberAttendanceScreen} />
               <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
             </Stack.Navigator>
           );

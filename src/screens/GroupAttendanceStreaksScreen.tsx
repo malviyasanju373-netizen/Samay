@@ -7,6 +7,7 @@ import { LoadingState, ErrorState } from "@/components/UIStates";
 import { requireFirestore } from "@/firebase";
 import { getTodayDateKey, subscribeToAttendanceForDate } from "@/services/attendance";
 import { useGroupMembers } from "@/hooks/useGroupMembers";
+import { getSecondaryIdentifier } from "@/utils/memberIdentification";
 import type { GroupMember } from "@/types/group";
 
 type AttendanceByDate = Record<string, Record<string, { present: boolean; displayName: string; focusMinutes: number }>>;
@@ -243,19 +244,26 @@ export default function GroupAttendanceStreaksScreen({ route, navigation }: any)
                   <Text style={s.highlightTitle}>Longest Current Streak</Text>
                 </View>
                 <Text style={s.highlightName}>{longestStreakMember.displayName}</Text>
+                <Text style={s.highlightId}>{getSecondaryIdentifier(longestStreakMember.uid, (members.find(m => m.uid === longestStreakMember.uid))?.email, (members.find(m => m.uid === longestStreakMember.uid))?.name)}</Text>
                 <Text style={s.highlightCount}>{formatDayCount(longestStreakMember.streak)}</Text>
               </View>
             )}
 
             <Text style={s.sectionTitle}>Attendance Streak Rankings</Text>
             <View style={s.rankingsSection}>
-              {streakMembers.map((member, idx) => (
-                <View key={member.uid || `streak-${idx}`} style={s.rankingRow}>
-                  <Text style={s.rankText}>#{idx + 1}</Text>
-                  <Text style={s.memberName} numberOfLines={1}>{member.displayName}</Text>
-                  <Text style={s.streakCount}>{formatDayCount(member.streak)}</Text>
-                </View>
-              ))}
+              {streakMembers.map((member, idx) => {
+                const memberData = members.find(m => m.uid === member.uid);
+                return (
+                  <View key={member.uid || `streak-${idx}`} style={s.rankingRow}>
+                    <Text style={s.rankText}>#{idx + 1}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.memberName} numberOfLines={1}>{member.displayName}</Text>
+                      <Text style={s.memberSecondaryId}>{getSecondaryIdentifier(member.uid, memberData?.email, memberData?.name)}</Text>
+                    </View>
+                    <Text style={s.streakCount}>{formatDayCount(member.streak)}</Text>
+                  </View>
+                );
+              })}
             </View>
           </>
         )}
@@ -309,6 +317,11 @@ const createStyles = (theme: any) =>
       textAlign: "center",
       marginBottom: 4,
     },
+    highlightId: {
+      fontSize: 12,
+      color: theme.colors.textTertiary,
+      marginBottom: 8,
+    },
     highlightCount: {
       fontSize: 18,
       fontWeight: "700",
@@ -345,6 +358,11 @@ const createStyles = (theme: any) =>
       fontSize: 15,
       fontWeight: "600",
       color: theme.colors.text,
+    },
+    memberSecondaryId: {
+      fontSize: 12,
+      color: theme.colors.textTertiary,
+      marginTop: 1,
     },
     streakCount: {
       fontSize: 15,

@@ -6,6 +6,7 @@ import { LoadingState, ErrorState } from "@/components/UIStates";
 import { useTheme } from "@/context/ThemeContext";
 import { requireFirestore } from "@/firebase";
 import { useGroupMembers } from "@/hooks/useGroupMembers";
+import { getSecondaryIdentifier } from "@/utils/memberIdentification";
 import type { GroupMember } from "@/types/group";
 
 type AttendanceRecord = {
@@ -239,6 +240,7 @@ export default function GroupMonthlyAttendanceScreen({ route, navigation }: any)
             <View style={s.selectorLabelWrap}>
               <Text style={s.selectorLabel}>Member</Text>
               <Text style={s.selectorValue} numberOfLines={1}>{getMemberName(selectedMember)}</Text>
+              {selectedMember && <Text style={s.selectorSecondaryId}>{getSecondaryIdentifier(selectedMember.uid, selectedMember.email, selectedMember.name)}</Text>}
             </View>
             <Ionicons
               name={selectorOpen ? "chevron-up" : "chevron-down"}
@@ -261,9 +263,14 @@ export default function GroupMonthlyAttendanceScreen({ route, navigation }: any)
                       setSelectorOpen(false);
                     }}
                   >
-                    <Text style={[s.memberOptionText, selected && s.memberOptionTextSelected]} numberOfLines={1}>
-                      {getMemberName(member)}
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.memberOptionText, selected && s.memberOptionTextSelected]} numberOfLines={1}>
+                        {getMemberName(member)}
+                      </Text>
+                      <Text style={[s.memberOptionSecondaryId, selected && s.memberOptionSecondaryIdSelected]}>
+                        {getSecondaryIdentifier(member.uid, member.email, member.name)}
+                      </Text>
+                    </View>
                     {selected && <Ionicons name="checkmark" size={18} color={theme.colors.primary} />}
                   </TouchableOpacity>
                 );
@@ -407,6 +414,11 @@ const createStyles = (theme: any) =>
       fontWeight: "700",
       color: theme.colors.text,
     },
+    selectorSecondaryId: {
+      fontSize: 12,
+      color: theme.colors.textTertiary,
+      marginTop: 2,
+    },
     memberMenu: {
       backgroundColor: theme.colors.card,
       borderRadius: 12,
@@ -433,6 +445,12 @@ const createStyles = (theme: any) =>
       color: theme.colors.text,
     },
     memberOptionTextSelected: { color: theme.colors.primary },
+    memberOptionSecondaryId: {
+      fontSize: 11,
+      color: theme.colors.textTertiary,
+      marginTop: 1,
+    },
+    memberOptionSecondaryIdSelected: { color: theme.colors.primary },
     monthNav: {
       flexDirection: "row",
       alignItems: "center",

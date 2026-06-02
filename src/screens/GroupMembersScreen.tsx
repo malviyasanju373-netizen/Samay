@@ -6,6 +6,7 @@ import { useGroupMembers } from "@/hooks/useGroupMembers";
 import { useTheme } from "@/context/ThemeContext";
 import { LoadingState, ErrorState } from "@/components/UIStates";
 import { formatLiveElapsedTime } from "@/utils/timeFormat";
+import { getSecondaryIdentifier } from "@/utils/memberIdentification";
 
 const LiveTimerText = ({ startedAt }: { startedAt: any }) => {
   const [elapsed, setElapsed] = useState(0);
@@ -86,25 +87,37 @@ export default function GroupMembersScreen({ route, navigation }: any) {
             <Text style={s.sectionTitle}>Who's Studying Now</Text>
             {leaderboard
               .filter((m) => m.isStudying)
-              .map((member, idx) => (
-                <View key={member.uid || `session-${idx}`} style={s.leaderboardRow}>
-                  <View style={s.studyingDot} />
-                  <Text style={s.memberName}>{member.displayName || "User"}</Text>
-                  <LiveTimerText startedAt={(member as any).currentSessionStart} />
-                </View>
-              ))}
+              .map((member, idx) => {
+                const secondaryId = getSecondaryIdentifier(member.uid, member.email, member.name);
+                return (
+                  <View key={member.uid || `session-${idx}`} style={s.leaderboardRow}>
+                    <View style={s.studyingDot} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.memberName}>{member.displayName || "User"}</Text>
+                      <Text style={s.secondaryId}>{secondaryId}</Text>
+                    </View>
+                    <LiveTimerText startedAt={(member as any).currentSessionStart} />
+                  </View>
+                );
+              })}
           </View>
         ) : null}
 
         {/* All Members */}
         <View style={s.membersSection}>
           <Text style={s.sectionTitle}>All Members</Text>
-          {Array.isArray(leaderboard) && leaderboard.length > 0 ? leaderboard.map((member, idx) => (
-            <View key={member?.uid || `member-${idx}`} style={s.leaderboardRow}>
-              <View style={[s.studyingDot, { backgroundColor: member?.isOnline ? '#22C55E' : '#9CA3AF' }]} />
-              <Text style={s.memberName}>{member?.displayName || "Unknown"}</Text>
-            </View>
-          )) : (
+          {Array.isArray(leaderboard) && leaderboard.length > 0 ? leaderboard.map((member, idx) => {
+            const secondaryId = getSecondaryIdentifier(member.uid, member.email, member.name);
+            return (
+              <View key={member?.uid || `member-${idx}`} style={s.leaderboardRow}>
+                <View style={[s.studyingDot, { backgroundColor: member?.isOnline ? '#22C55E' : '#9CA3AF' }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.memberName}>{member?.displayName || "Unknown"}</Text>
+                  <Text style={s.secondaryId}>{secondaryId}</Text>
+                </View>
+              </View>
+            );
+          }) : (
             <Text style={{ color: theme.colors.textSecondary }}>No members found.</Text>
           )}
         </View>
@@ -147,6 +160,7 @@ const createStyles = (theme: any) =>
       borderBottomColor: theme.colors.border,
     },
     memberName: { flex: 1, fontSize: 14, color: theme.colors.text },
+    secondaryId: { fontSize: 12, color: theme.colors.textTertiary, marginTop: 2 },
     studyingDot: {
       width: 8,
       height: 8,

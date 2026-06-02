@@ -6,6 +6,7 @@ import { LoadingState, ErrorState } from "@/components/UIStates";
 import { useTheme } from "@/context/ThemeContext";
 import { requireFirestore } from "@/firebase";
 import { useGroupMembers } from "@/hooks/useGroupMembers";
+import { getSecondaryIdentifier } from "@/utils/memberIdentification";
 import type { GroupMember } from "@/types/group";
 
 type AttendanceByDate = Record<string, Record<string, { present: boolean; displayName: string; focusMinutes: number }>>;
@@ -13,6 +14,8 @@ type AttendanceByDate = Record<string, Record<string, { present: boolean; displa
 type WeeklyMember = {
   uid: string;
   displayName: string;
+  email?: string;
+  username?: string;
   presentDays: number;
   totalDays: number;
   attendancePercentage: number;
@@ -80,6 +83,8 @@ export function buildWeeklyAttendanceReport(
       return {
         uid: member.uid,
         displayName: member.displayName || member.name || "User",
+        email: member.email,
+        username: member.name,
         presentDays,
         totalDays: dateKeys.length,
         attendancePercentage,
@@ -260,7 +265,10 @@ export default function GroupWeeklyAttendanceScreen({ route, navigation }: any) 
               {weeklyMembers.map((member, idx) => (
                 <View key={member.uid || `weekly-rank-${idx}`} style={s.rankingRow}>
                   <Text style={s.rankText}>#{idx + 1}</Text>
-                  <Text style={s.memberName} numberOfLines={1}>{member.displayName}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.memberName} numberOfLines={1}>{member.displayName}</Text>
+                    <Text style={s.memberSecondaryId}>{getSecondaryIdentifier(member.uid, member.email, member.username)}</Text>
+                  </View>
                   <Text style={s.memberDays}>{member.presentDays}/{member.totalDays}</Text>
                   <Text style={s.memberPercent}>{member.attendancePercentage}%</Text>
                 </View>
@@ -396,6 +404,11 @@ const createStyles = (theme: any) =>
       fontSize: 15,
       fontWeight: "600",
       color: theme.colors.text,
+    },
+    memberSecondaryId: {
+      fontSize: 12,
+      color: theme.colors.textTertiary,
+      marginTop: 1,
     },
     memberDays: {
       width: 44,

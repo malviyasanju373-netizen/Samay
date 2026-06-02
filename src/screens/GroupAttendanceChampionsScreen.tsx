@@ -5,6 +5,7 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 import { useGroupAttendance } from "@/hooks/useGroupAttendance";
 import { useTheme } from "@/context/ThemeContext";
 import { LoadingState, ErrorState } from "@/components/UIStates";
+import { getSecondaryIdentifier } from "@/utils/memberIdentification";
 
 const MEDAL_CONFIG = [
   { emoji: "🥇", label: "Gold", color: "#F59E0B" },
@@ -80,6 +81,7 @@ export default function GroupAttendanceChampionsScreen({ route, navigation }: an
               <Text style={s.consistentTitle}>Most Consistent Member</Text>
             </View>
             <Text style={s.consistentName}>{rankedMembers[0].displayName}</Text>
+            <Text style={s.consistentId}>{getSecondaryIdentifier(rankedMembers[0].uid, rankedMembers[0].email, rankedMembers[0].username)}</Text>
             <Text style={s.consistentPercent}>{rankedMembers[0].attendancePercentage}% attendance</Text>
             <Text style={s.consistentDetail}>
               {rankedMembers[0].presentDays} of {rankedMembers[0].totalDays} tracked days
@@ -101,6 +103,7 @@ export default function GroupAttendanceChampionsScreen({ route, navigation }: an
                   </View>
                   <View style={s.championInfo}>
                     <Text style={s.championName}>{member.displayName}</Text>
+                    <Text style={s.championId}>{getSecondaryIdentifier(member.uid, member.email, member.username)}</Text>
                     <Text style={s.championPercent}>{member.attendancePercentage}%</Text>
                     <Text style={s.championDetail}>
                       {member.presentDays} present / {member.totalDays} tracked
@@ -124,6 +127,7 @@ export default function GroupAttendanceChampionsScreen({ route, navigation }: an
                 <Text style={s.restRank}>{idx + 4}</Text>
                 <View style={s.restInfo}>
                   <Text style={s.restName}>{member.displayName}</Text>
+                  <Text style={s.restId}>{getSecondaryIdentifier(member.uid, member.email, member.username)}</Text>
                   <Text style={s.restDetail}>
                     {member.presentDays} present · {member.totalDays} tracked
                   </Text>
@@ -189,6 +193,11 @@ const createStyles = (theme: any) =>
       color: theme.colors.text,
       marginBottom: 4,
     },
+    consistentId: {
+      fontSize: 12,
+      color: theme.colors.textTertiary,
+      marginBottom: 8,
+    },
     consistentPercent: {
       fontSize: 16,
       fontWeight: "600",
@@ -238,6 +247,11 @@ const createStyles = (theme: any) =>
       fontWeight: "700",
       color: theme.colors.text,
       marginBottom: 2,
+    },
+    championId: {
+      fontSize: 12,
+      color: theme.colors.textTertiary,
+      marginBottom: 4,
     },
     championPercent: {
       fontSize: 18,
@@ -291,6 +305,11 @@ const createStyles = (theme: any) =>
       fontSize: 14,
       fontWeight: "600",
       color: theme.colors.text,
+    },
+    restId: {
+      fontSize: 12,
+      color: theme.colors.textTertiary,
+      marginTop: 1,
     },
     restDetail: {
       fontSize: 12,

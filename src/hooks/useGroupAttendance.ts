@@ -27,6 +27,8 @@ export type WeeklyAttendance = Record<
 export type RankedMember = {
   uid: string;
   displayName: string;
+  email?: string;
+  username?: string;
   attendancePercentage: number;
   presentDays: number;
   totalDays: number;
@@ -36,6 +38,8 @@ export type RankedMember = {
 type GroupMember = {
   uid: string;
   displayName: string;
+  email?: string;
+  name?: string;
 };
 
 export type GroupAttendanceData = {
@@ -201,6 +205,15 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
       ? Math.round((todayPresent / totalMembers) * 100)
       : 0;
 
+  // ── Helper to enrich member with email and username ──
+  const getMemberEmailAndUsername = (uid: string) => {
+    const member = groupMembers.find((m) => m.uid === uid);
+    return {
+      email: member?.email,
+      username: member?.name,
+    };
+  };
+
   // ── Derived: ranked members ──
   const fallbackChampionsUsed = summaryUids.length === 0 && todayRecords.length > 0;
   const rankedMembers: RankedMember[] = fallbackChampionsUsed
@@ -212,6 +225,8 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
           return {
             uid: member.uid,
             displayName: todayRecord?.displayName ?? member.displayName,
+            email: member.email,
+            username: member.name,
             attendancePercentage: present ? 100 : 0,
             presentDays: present ? 1 : 0,
             totalDays: 1,
@@ -239,9 +254,12 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
           }
 
           const s = summary[member.uid];
+          const { email, username } = getMemberEmailAndUsername(member.uid);
           return {
             uid: member.uid,
             displayName,
+            email,
+            username,
             attendancePercentage: s.percentage,
             presentDays: s.presentDays,
             totalDays: s.totalDays,

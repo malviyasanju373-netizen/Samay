@@ -9,6 +9,7 @@ import { auth } from "@/firebase";
 import { LeaderboardEntry } from "@/services/leaderboard";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useTheme } from "@/context/ThemeContext";
+import { getSecondaryIdentifier } from "@/utils/memberIdentification";
 
 function formatHours(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -78,12 +79,14 @@ export default function LeaderboardScreen({ navigation }: any) {
               const displayName = entry.displayName || "Anonymous";
               const minutes = entry.totalFocusMinutes || 0;
               const rank = entry.rank || index + 1;
+              const secondaryId = getSecondaryIdentifier(entry.uid);
               
               return (
                 <View key={entry.uid} style={s.listRow}>
                   <Text style={s.listRank}>#{rank}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={s.listName}>{displayName}</Text>
+                    <Text style={s.secondaryId}>{secondaryId}</Text>
                   </View>
                   <Text style={s.listTime}>{formatHours(minutes)}</Text>
                 </View>
@@ -120,6 +123,7 @@ function createStyles(theme: any) {
     listRowHighlight: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + "08" },
     listRank: { fontSize: 14, fontWeight: "700", color: theme.colors.text, width: 30 },
     listName: { fontSize: 14, fontWeight: "600", color: theme.colors.text, flex: 1 },
+    secondaryId: { fontSize: 12, color: theme.colors.textTertiary, marginTop: 2 },
     listTime: { fontSize: 14, fontWeight: "700", color: theme.colors.primary },
     errorText: { textAlign: "center", color: theme.colors.error, padding: 16, fontSize: 13 },
   });
