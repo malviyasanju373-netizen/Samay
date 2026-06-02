@@ -22,6 +22,7 @@ import GroupLeaderboardScreen from "@/screens/GroupLeaderboardScreen";
 import GroupMembersScreen     from "@/screens/GroupMembersScreen";
 import GroupAttendanceScreen  from "@/screens/GroupAttendanceScreen";
 import GroupAttendanceChampionsScreen  from "@/screens/GroupAttendanceChampionsScreen";
+import GroupAttendanceStreaksScreen  from "@/screens/GroupAttendanceStreaksScreen";
 import GroupChatScreen        from "@/screens/GroupChatScreen";
 import { ensureUserProfile } from "@/services/userProfile";
 
@@ -91,6 +92,7 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
         <Stack.Screen name="GroupMembers"    component={GroupMembersScreen} />
         <Stack.Screen name="GroupAttendance" component={GroupAttendanceScreen} />
                 <Stack.Screen name="GroupAttendanceChampions" component={GroupAttendanceChampionsScreen} />
+                <Stack.Screen name="GroupAttendanceStreaks" component={GroupAttendanceStreaksScreen} />
                 <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
               </Stack.Navigator>
             );
@@ -114,6 +116,7 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
         <Stack.Screen name="GroupMembers"    component={GroupMembersScreen} />
         <Stack.Screen name="GroupAttendance" component={GroupAttendanceScreen} />
                 <Stack.Screen name="GroupAttendanceChampions" component={GroupAttendanceChampionsScreen} />
+                <Stack.Screen name="GroupAttendanceStreaks" component={GroupAttendanceStreaksScreen} />
                 <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
               </Stack.Navigator>
             );
@@ -138,6 +141,7 @@ const AppNavigator: React.FC<AppNavigatorProps> = ({ user, authLoading }) => {
       <Stack.Screen name="GroupMembers"    component={GroupMembersScreen} />
       <Stack.Screen name="GroupAttendance" component={GroupAttendanceScreen} />
               <Stack.Screen name="GroupAttendanceChampions" component={GroupAttendanceChampionsScreen} />
+              <Stack.Screen name="GroupAttendanceStreaks" component={GroupAttendanceStreaksScreen} />
               <Stack.Screen name="GroupChat"       component={GroupChatScreen} />
             </Stack.Navigator>
           );
