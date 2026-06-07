@@ -379,6 +379,10 @@ export async function hasPendingJoinRequest(groupId: string, uid: string): Promi
     console.log("[DEBUG hasPendingJoinRequest] QUERY SUCCESS — exists:", snap.exists, "data:", snap.data());
     return snap.exists() && snap.data()?.status === "pending";
   } catch (err: any) {
+    if (err?.code === "firestore/unavailable" || err?.code === "firestore/network-request-failed") {
+      return false;
+    }
+
     console.error("[DEBUG hasPendingJoinRequest] FULL ERROR OBJECT:", JSON.stringify({
       code: err.code,
       message: err.message,

@@ -141,8 +141,13 @@ export default function GroupDetailScreen({ route, navigation }: any) {
         Alert.alert("Success", "Joined group successfully");
       }
     } catch (err: any) {
+      console.log("[JOIN GROUP ERROR]", err?.code, err?.message);
       if (mountedRef.current) {
-        Alert.alert("Error", err?.message || "Failed to join group");
+        const message =
+          err?.code === "firestore/unavailable" || err?.code === "firestore/network-request-failed"
+            ? "Network issue. Please try again in a few seconds."
+            : err?.message || "Failed to join group";
+        Alert.alert("Error", message);
       }
     } finally {
       if (mountedRef.current) setJoining(false);
