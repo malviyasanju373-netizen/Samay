@@ -9,9 +9,10 @@ import {
   getPendingJoinRequests, 
   approveJoinRequest, 
   rejectJoinRequest,
-  getGroupMembers,
 } from "@/services/groups";
 import { useTheme } from "@/context/ThemeContext";
+import { useGroup } from "@/hooks/useGroup";
+import { useGroupMembers } from "@/hooks/useGroupMembers";
 
 interface JoinRequest {
   uid: string;
@@ -27,7 +28,8 @@ export default function PendingRequestsScreen({ route, navigation }: any) {
   
   const { theme } = useTheme();
   const currentUid = auth()?.currentUser?.uid ?? null;
-  const currentDisplayName = auth()?.currentUser?.displayName ?? "User";
+  const { group, loading: groupLoading, error: groupError } = useGroup(groupId);
+  const { leaderboard, loading: membersLoading, error: membersError } = useGroupMembers(groupId);
   
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,14 @@ export default function PendingRequestsScreen({ route, navigation }: any) {
   const [processingUids, setProcessingUids] = useState<Set<string>>(new Set());
   const mountedRef = useRef(true);
   const s = useMemo(() => createStyles(theme), [theme]);
+  const currentMember = useMemo(
+    () => leaderboard.find((member) => member.uid === currentUid),
+    [leaderboard, currentUid]
+  );
+  const canManageJoinRequests = Boolean(
+    currentUid &&
+    (group?.adminId === currentUid || group?.createdBy === currentUid || currentMember?.role === "admin")
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -46,6 +56,13 @@ export default function PendingRequestsScreen({ route, navigation }: any) {
   const loadRequests = useCallback(async () => {
     if (!groupId) {
       setError("Group not found");
+      return;
+    }
+    if (groupLoading || membersLoading) return;
+    if (!canManageJoinRequests) {
+      setRequests([]);
+      setLoading(false);
+      setError("You do not have permission to manage join requests");
       return;
     }
 
@@ -67,7 +84,7 @@ export default function PendingRequestsScreen({ route, navigation }: any) {
         setLoading(false);
       }
     }
-  }, [groupId]);
+  }, [canManageJoinRequests, groupId, groupLoading, membersLoading]);
 
   useEffect(() => {
     loadRequests();
@@ -238,7 +255,7 @@ export default function PendingRequestsScreen({ route, navigation }: any) {
     </View>
   );
 
-  if (loading) {
+  if (loading || groupLoading || membersLoading) {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.header}>
@@ -255,7 +272,9 @@ export default function PendingRequestsScreen({ route, navigation }: any) {
     );
   }
 
-  if (error) {
+  const combinedError = error || groupError || membersError;
+
+  if (combinedError) {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.header}>
@@ -268,7 +287,7 @@ export default function PendingRequestsScreen({ route, navigation }: any) {
         <View style={s.errorContainer}>
           <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
           <Text style={[s.errorTitle, { color: theme.colors.error }]}>Error</Text>
-          <Text style={[s.errorMessage, { color: theme.colors.textSecondary }]}>{error}</Text>
+          <Text style={[s.errorMessage, { color: theme.colors.textSecondary }]}>{combinedError}</Text>
           <TouchableOpacity
             style={[s.retryBtn, { backgroundColor: theme.colors.primary }]}
             onPress={loadRequests}

@@ -17,6 +17,7 @@ export type Group = {
 
 export type GroupMember = {
   uid: string;
+  role?: "owner" | "admin" | "member";
   name: string;
   displayName?: string;
   studyTime: number;

@@ -38,6 +38,13 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     () => Array.isArray(leaderboard) && leaderboard.some((m) => m?.uid === currentUid),
     [leaderboard, currentUid]
   );
+  const currentMember = useMemo(
+    () => Array.isArray(leaderboard) ? leaderboard.find((m) => m?.uid === currentUid) : undefined,
+    [leaderboard, currentUid]
+  );
+  const isOwner = Boolean(currentUid && (group?.adminId === currentUid || group?.createdBy === currentUid));
+  const isRoleAdmin = currentMember?.role === "admin";
+  const canManageJoinRequests = isOwner || isRoleAdmin;
   
   const loading = groupLoading || membersLoading;
   const error = groupError || membersError;
@@ -71,8 +78,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   useEffect(() => {
     if (!group || !groupId || !currentUid) return;
 
-    const isUserAdmin = group.adminId === currentUid;
-    if (!isUserAdmin) return;
+    if (!canManageJoinRequests) return;
 
     const loadPendingCount = async () => {
       try {
@@ -86,7 +92,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     };
 
     loadPendingCount();
-  }, [group, groupId, currentUid]);
+  }, [canManageJoinRequests, group, groupId]);
 
   const safeGoBack = useCallback(() => {
     if (navigation?.canGoBack?.()) {
@@ -208,7 +214,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     ]);
   }, [groupId, currentUid, safeGoBack]);
 
-  const isAdmin = group?.adminId === currentUid;
+  const isAdmin = canManageJoinRequests;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

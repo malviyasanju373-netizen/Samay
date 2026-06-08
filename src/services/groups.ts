@@ -41,9 +41,11 @@ function normalizeGroup(id: string, data: Record<string, any>): Group {
 function normalizeGroupMember(uid: string, data: Record<string, any>): GroupMember {
   const rawName = data.name || data.displayName || "User";
   const rawStudyTime = Number(data.studyTime ?? data.totalFocusMinutes ?? 0);
+  const rawRole = data.role === "owner" || data.role === "admin" || data.role === "member" ? data.role : "member";
   return {
     uid,
     ...data,
+    role: rawRole,
     name: String(rawName),
     displayName: data.displayName ? String(data.displayName) : String(rawName),
     studyTime: Number(rawStudyTime),
@@ -107,6 +109,7 @@ export async function createGroup(
     studyTime: 0,
     attendance: 0,
     isOnline: false,
+    role: "owner",
     joinedAt: firestore.FieldValue.serverTimestamp(),
   });
   await batch.commit();
@@ -168,6 +171,7 @@ export async function joinGroup(groupId: string, uid: string, displayName: strin
     studyTime: 0,
     attendance: 0,
     isOnline: false,
+    role: "member",
     joinedAt: firestore.FieldValue.serverTimestamp(),
   });
   batch.update(groupRef, {
@@ -447,6 +451,7 @@ export async function approveJoinRequest(groupId: string, uid: string, displayNa
       studyTime: 0,
       attendance: 0,
       isOnline: false,
+      role: "member",
       joinedAt: firestore.FieldValue.serverTimestamp(),
     });
     
@@ -491,6 +496,31 @@ export async function rejectJoinRequest(groupId: string, uid: string): Promise<v
     console.error("[groups] rejectJoinRequest error:", err?.message);
     throw err;
   }
+}
+
+export async function updateGroupMemberRole(
+  groupId: string,
+  uid: string,
+  role: "admin" | "member"
+): Promise<void> {
+  if (!groupId || !uid) throw new Error("Invalid groupId or userId");
+  await requireFirestore()
+    .collection("groups")
+    .doc(groupId)
+    .collection("members")
+    .doc(uid)
+    .set({ role }, { merge: true });
+}
+
+export async function removeGroupMember(groupId: string, uid: string): Promise<void> {
+  if (!groupId || !uid) throw new Error("Invalid groupId or userId");
+  const db = requireFirestore();
+  const groupRef = db.collection("groups").doc(groupId);
+  const batch = db.batch();
+  batch.delete(groupRef.collection("members").doc(uid));
+  batch.update(groupRef, { memberCount: firestore.FieldValue.increment(-1) });
+  await batch.commit();
+  groupsListCache = null;
 }
 
 export function subscribeToGroupMembers(
