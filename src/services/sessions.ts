@@ -120,9 +120,9 @@ export async function cancelSession(uid: string, sessionId: string): Promise<voi
   await batch.commit();
 }
 
-export async function completeSession(uid: string, sessionId: string, durationMinutes: number): Promise<void> {
+export async function completeSession(uid: string, sessionId: string, durationMinutes: number, groupId?: string | null): Promise<void> {
   const db = requireFirestore();
-  console.log("[completeSession] START", { uid, sessionId, durationMinutes });
+  console.log("[completeSession] START", { uid, sessionId, durationMinutes, groupId });
   
   const batch = db.batch();
   batch.update(db.collection("sessions").doc(sessionId), {
@@ -185,45 +185,28 @@ export async function completeSession(uid: string, sessionId: string, durationMi
       });
     }
 
-    // Recalculate total study time for all groups the user belongs to
-    let groupTotalStudyTimeQueryConfig: FirestoreQueryLogConfig = {
-      collection: "collectionGroup:members",
-      whereClauses: [`uid == ${uid}`],
-      orderByClauses: [],
-    };
-    try {
-      const memberDocsQueryConfig: FirestoreQueryLogConfig = {
-        collection: "collectionGroup:members",
-        whereClauses: [`uid == ${uid}`],
-        orderByClauses: [],
-      };
-      groupTotalStudyTimeQueryConfig = memberDocsQueryConfig;
-      logFirestoreQueryStart(memberDocsQueryConfig);
-      const memberDocs = await db.collectionGroup("members").where("uid", "==", uid).get();
-      const groupIds = Array.from(new Set(memberDocs.docs.map((d) => d.ref.parent.parent?.id).filter(Boolean))) as string[];
-      for (const groupId of groupIds) {
+    // Recalculate total study time for the group
+    if (groupId) {
+      try {
         const members = await getGroupMembers(groupId);
-        const totalTime = members.reduce((sum, m) => sum + (m.totalFocusMinutes || 0), 0);
-        // Save to groups/{groupId}.totalStudyTime as hours
-        const updateGroupTotalStudyTimeConfig: FirestoreQueryLogConfig = {
-          collection: `groups/${groupId}`,
-          whereClauses: [],
-          orderByClauses: [],
-        };
-        groupTotalStudyTimeQueryConfig = updateGroupTotalStudyTimeConfig;
-        logFirestoreQueryStart(updateGroupTotalStudyTimeConfig);
-        await db.collection("groups").doc(groupId).update({
-          totalStudyTime: Math.round(totalTime / 60)
+        const totalTime = members.reduce(
+          (sum, m) => sum + (m.totalFocusMinutes || 0),
+          0
+        );
+
+        await db.collection("groups")
+          .doc(groupId)
+          .update({
+            totalStudyTime: Math.round(totalTime / 60),
+          });
+      } catch (err: any) {
+        console.error("[completeSession] failed to update group totalStudyTime:", {
+          code: err?.code,
+          message: err?.message,
         });
       }
-    } catch (err: any) {
-      console.error("[completeSession] failed to update group totalStudyTime:", {
-        code: err?.code,
-        message: err?.message,
-      });
-      if (err?.code === "firestore/failed-precondition") {
-        console.error("[completeSession] group totalStudyTime failed-precondition query configuration", groupTotalStudyTimeQueryConfig);
-      }
+    } else {
+      console.warn("[completeSession] groupId is missing. Skipping totalStudyTime update for the group.");
     }
   }
 }
