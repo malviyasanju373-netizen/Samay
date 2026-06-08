@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "54974357437",
+    "project_id": "samay-cbcdd",
+    "storage_bucket": "samay-cbcdd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:54974357437:android:5201539baa53140c64fcd4",
+        "android_client_info": {
+          "package_name": "com.samay.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "54974357437-2s23ttfqs2pt8snkrlo7ffk5rmrr4uiq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.samay.app",
+            "certificate_hash": "f8532527d22d56bb32b3a8ab4776e244cbe034d7"
+          }
+        },
+        {
+          "client_id": "54974357437-4recvlpmf2tk02rebmm939nbs313t36p.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.samay.app",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "54974357437-65bmm8pjvenchausg26siseo8mnn0jfj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAUBBs2hojFWh7J82e9wdTXto8VklTBr-E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "54974357437-65bmm8pjvenchausg26siseo8mnn0jfj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

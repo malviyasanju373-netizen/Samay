@@ -21,7 +21,10 @@
       "edgeToEdgeEnabled": true,
       "package": "com.samay.app",
       "versionCode": 1,
-      "googleServicesFile": "./android/app/google-services.json"
+      "googleServicesFile": "./android/app/google-services.json",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -47,8 +50,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+        "projectId": "f3becf6e-ba22-4473-afc4-06e0e52e3f3a"
       }
-    }
+    },
+    "owner": "sanju373"
   }
 }
