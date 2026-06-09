@@ -82,12 +82,14 @@ export async function updateAttendance(
       .collection("members")
       .doc(uid);
 
+    const safeTotalMinutes = typeof totalMinutes === "number" && !isNaN(totalMinutes) ? totalMinutes : 0;
+    
     // Use set with merge to accumulate minutes and update status
     await memberAttendanceRef.set(
       {
         uid,
         displayName: displayName || "User",
-        focusMinutes: firestore.FieldValue.increment(totalMinutes),
+        focusMinutes: firestore.FieldValue.increment(safeTotalMinutes),
         present,
         dateKey,
         updatedAt: firestore.FieldValue.serverTimestamp(),

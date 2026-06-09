@@ -8,6 +8,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { auth } from "@/firebase";
 import { getRecentSessions } from "@/services/sessions";
 import { FocusSession, CATEGORIES } from "@/types/session";
+import { formatStudyTime } from "@/utils/timeFormat";
 
 function formatHMS(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -124,9 +125,10 @@ export default function SessionsScreen() {
                     )}
                   </View>
                   <View style={s.cardRight}>
-                    <Text style={[s.cardDuration, { color: cat.color }]}>{formatHMS(session.durationMinutes)}</Text>
+                    <Text style={[s.cardDuration, { color: cat.color }]}>{formatStudyTime(session.durationSeconds ?? session.durationMinutes * 60)}</Text>
                     {session.targetMinutes && (
-                      <Text style={s.cardTarget}>/{formatHMS(session.targetMinutes)}</Text>
+
+                      <Text style={s.cardTarget}>/{formatStudyTime(session.targetMinutes * 60)}</Text>
                     )}
                   </View>
                 </View>

@@ -13,16 +13,9 @@ import {
   changeUsername, cooldownDaysRemaining, updateDisplayName, updateGoal,
 } from "@/services/userProfile";
 import AppDialog, { AppDialogButton } from "@/components/AppDialog";
+import { formatStudyTime } from "@/utils/timeFormat";
 
 const AVATAR_KEY = "LOCAL_PROFILE_PHOTO";
-
-function formatHours(minutes: number) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
-}
 
 function formatMemberSince(value: any) {
   const date = typeof value?.toDate === "function" ? value.toDate() : value instanceof Date ? value : null;
@@ -46,7 +39,7 @@ export default function ProfileScreen({ navigation }: any) {
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [editingGoal, setEditingGoal] = useState("");
   const [goalLoading, setGoalLoading] = useState(false);
-  const [totalMinutes, setTotalMinutes] = useState(0);
+  const [totalSeconds, setTotalSeconds] = useState(0);
   const [dialog, setDialog] = useState<DialogState | null>(null);
 
   const showDialog = (title: string, message: string, buttons?: AppDialogButton[]) => setDialog({ title, message, buttons });
@@ -59,7 +52,12 @@ export default function ProfileScreen({ navigation }: any) {
   useEffect(() => {
     if (!user) return;
     firestore().collection("users").doc(user.uid).get().then((snap) => {
-      if (snap.exists()) setTotalMinutes(snap.data()?.totalFocusMinutes ?? 0);
+      if (snap.exists()) {
+        const d = snap.data();
+        const mins = d?.totalFocusMinutes ?? 0;
+        const secs = d?.totalFocusSeconds ?? (mins * 60);
+        setTotalSeconds(secs);
+      }
     }).catch(() => {});
   }, [user]);
 
@@ -193,7 +191,7 @@ export default function ProfileScreen({ navigation }: any) {
           {/* Stats row */}
           <View style={s.statsRow}>
             <View style={s.statCard}>
-              <Text style={s.statValue}>{formatHours(totalMinutes)}</Text>
+              <Text style={s.statValue}>{formatStudyTime(totalSeconds)}</Text>
               <Text style={s.statLabel}>Total Focus</Text>
             </View>
             <View style={[s.statCard, { borderColor: theme.colors.border }]}>

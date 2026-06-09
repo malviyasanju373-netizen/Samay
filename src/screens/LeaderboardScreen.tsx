@@ -10,14 +10,7 @@ import { LeaderboardEntry } from "@/services/leaderboard";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useTheme } from "@/context/ThemeContext";
 import { getSecondaryIdentifier } from "@/utils/memberIdentification";
-
-function formatHours(minutes: number) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
-}
+import { formatStudyTime } from "@/utils/timeFormat";
 
 function timeAgo(ms: number): string {
   const m = Math.round((Date.now() - ms) / 60000);
@@ -77,7 +70,7 @@ export default function LeaderboardScreen({ navigation }: any) {
           <View style={s.listSection}>
             {entries.map((entry, index) => {
               const displayName = entry.displayName || "Anonymous";
-              const minutes = entry.totalFocusMinutes || 0;
+                            const seconds = entry.totalFocusSeconds ?? ((entry.totalFocusMinutes || 0) * 60);
               const rank = entry.rank || index + 1;
               const secondaryId = getSecondaryIdentifier(entry.uid);
               
@@ -88,7 +81,7 @@ export default function LeaderboardScreen({ navigation }: any) {
                     <Text style={s.listName}>{displayName}</Text>
                     <Text style={s.secondaryId}>{secondaryId}</Text>
                   </View>
-                  <Text style={s.listTime}>{formatHours(minutes)}</Text>
+                  <Text style={s.listTime}>{formatStudyTime(seconds)}</Text>
                 </View>
               );
             })}

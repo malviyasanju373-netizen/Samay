@@ -90,12 +90,14 @@ export default function TimerScreen({ route, navigation }: any) {
   const handleStop = async () => {
     if (busy) return;
     setBusy(true);
-    console.log("[BEFORE STOP] activeSession =", activeSession);
+
     const done = await stop();
-    if (done > 0) {
+
+    if (typeof done === "number" && done > 0) {
       setCompletedMinutes(done);
       setShowCompletionModal(true);
     }
+    
     setBusy(false);
   };
 

@@ -11,6 +11,7 @@ export type Group = {
   maxMembers: number;
   attendancePercentage?: number;
   totalStudyTime?: number;
+  totalStudyTimeSeconds?: number;
   camStudyHours?: number;
   isPrivate?: boolean;
 };
@@ -22,6 +23,7 @@ export type GroupMember = {
   displayName?: string;
   studyTime: number;
   totalFocusMinutes: number;
+  totalFocusSeconds?: number;
   attendance: number;
   isOnline: boolean;
   joinedAt: FirebaseFirestoreTypes.Timestamp;

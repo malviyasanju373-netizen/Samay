@@ -5,7 +5,7 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 import { useGroupMembers } from "@/hooks/useGroupMembers";
 import { useTheme } from "@/context/ThemeContext";
 import { LoadingState, ErrorState } from "@/components/UIStates";
-import { formatLiveElapsedTime } from "@/utils/timeFormat";
+import { formatLiveElapsedTime, formatStudyTime } from "@/utils/timeFormat";
 
 export default function GroupLeaderboardScreen({ route, navigation }: any) {
   const groupId = typeof route?.params?.groupId === "string" ? route.params.groupId : "";
@@ -77,7 +77,8 @@ export default function GroupLeaderboardScreen({ route, navigation }: any) {
                     <Text style={s.studyingBadgeText}>Studying</Text>
                   </View>
                 )}
-                <Text style={s.memberScore}>{member?.totalFocusMinutes || 0}m</Text>
+
+                <Text style={s.memberScore}>{formatStudyTime(member?.totalFocusSeconds ?? ((member?.totalFocusMinutes || 0) * 60))}</Text>
               </View>
             ))}
           </View>

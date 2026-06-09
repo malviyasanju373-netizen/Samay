@@ -10,15 +10,9 @@ import { auth, firestore } from "@/firebase";
 import { getTodayMinutes, getRecentSessions } from "@/services/sessions";
 import { FocusSession, CATEGORIES } from "@/types/session";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { formatStudyTime } from "@/utils/timeFormat";
 
 const WELCOME_BANNER_KEY = "WELCOME_BANNER_PENDING";
-
-function formatHMS(minutes: number) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}m`;
-  return `${h}h ${m > 0 ? `${m}m` : ""}`;
-}
 
 function sessionDateLabel(session: FocusSession) {
   const ts = typeof (session.startTime as any)?.toDate === "function"
@@ -36,8 +30,8 @@ export default function HomeScreen({ navigation }: any) {
   const user = auth().currentUser;
   const s = createStyles(theme);
 
-  const [todayMinutes, setTodayMinutes] = useState(0);
-  const [totalMinutes, setTotalMinutes] = useState(0);
+    const [todaySeconds, setTodaySeconds] = useState(0);
+  const [totalSeconds, setTotalSeconds] = useState(0);
   const [recentSessions, setRecentSessions] = useState<FocusSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,9 +50,14 @@ export default function HomeScreen({ navigation }: any) {
         getRecentSessions(user.uid, 5),
         firestore().collection("users").doc(user.uid).get(),
       ]);
-      setTodayMinutes(today);
+            setTodaySeconds((today ?? 0) * 60);
       setRecentSessions(sessions);
-      if (userSnap.exists()) setTotalMinutes(userSnap.data()?.totalFocusMinutes ?? 0);
+      if (userSnap.exists()) {
+        const d = userSnap.data();
+        const mins = d?.totalFocusMinutes ?? 0;
+        const secs = d?.totalFocusSeconds ?? (mins * 60);
+        setTotalSeconds(secs);
+      }
     } catch (err: any) {
       setError(err?.message ?? "Could not refresh your focus data.");
     }
@@ -107,7 +106,7 @@ export default function HomeScreen({ navigation }: any) {
         {error ? <Text style={s.errorText}>{error}</Text> : null}
         <TouchableOpacity onPress={() => navigation.navigate("Timer")} style={s.heroCard} activeOpacity={0.9}>
           <View style={s.heroInner}>
-            <Text style={s.heroTime}>{formatHMS(todayMinutes)}</Text>
+            <Text style={s.heroTime}>{formatStudyTime(todaySeconds)}</Text>
             <Text style={s.heroLabel}>Today</Text>
           </View>
           <View style={s.heroRight}>
@@ -122,7 +121,7 @@ export default function HomeScreen({ navigation }: any) {
         <View style={s.miniRow}>
           <View style={s.miniCard}>
             <Ionicons name="time-outline" size={22} color={theme.colors.accent5} />
-            <Text style={s.miniValue}>{formatHMS(totalMinutes)}</Text>
+            <Text style={s.miniValue}>{formatStudyTime(totalSeconds)}</Text>
             <Text style={s.miniLabel}>Total</Text>
           </View>
           <TouchableOpacity style={s.miniCard} onPress={() => navigation.navigate("Leaderboard")} activeOpacity={0.8}>
@@ -173,7 +172,7 @@ export default function HomeScreen({ navigation }: any) {
                     <Text style={s.sessionTitle} numberOfLines={1}>{session.title || cat.label}</Text>
                     <Text style={s.sessionDate}>{sessionDateLabel(session)}</Text>
                   </View>
-                  <Text style={s.sessionDuration}>{formatHMS(session.durationMinutes)}</Text>
+                  <Text style={s.sessionDuration}>{formatStudyTime(session.durationSeconds ?? session.durationMinutes * 60)}</Text>
                 </View>
               );
             })}

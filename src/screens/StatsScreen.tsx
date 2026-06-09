@@ -8,15 +8,9 @@ import { auth } from "@/firebase";
 import { getWeeklyMinutes, getRecentSessions } from "@/services/sessions";
 import { CATEGORIES, FocusSession } from "@/types/session";
 import Ionicons from "@react-native-vector-icons/ionicons";
+import { formatStudyTime } from "@/utils/timeFormat";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function formatHMS(minutes: number) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}m`;
-  return `${h}h${m > 0 ? ` ${m}m` : ""}`;
-}
 
 function categoryBreakdown(sessions: FocusSession[]): { categoryId: string; minutes: number }[] {
   const map = new Map<string, number>();
@@ -92,12 +86,12 @@ export default function StatsScreen() {
         <View style={s.summaryRow}>
           <View style={s.summaryCard}>
             <Ionicons name="time" size={20} color={theme.colors.primary} />
-            <Text style={s.summaryValue}>{formatHMS(totalWeek)}</Text>
+            <Text style={s.summaryValue}>{formatStudyTime(totalWeek * 60)}</Text>
             <Text style={s.summaryLabel}>This week</Text>
           </View>
           <View style={s.summaryCard}>
             <Ionicons name="trending-up" size={20} color={theme.colors.success} />
-            <Text style={s.summaryValue}>{formatHMS(avgDay)}</Text>
+            <Text style={s.summaryValue}>{formatStudyTime(avgDay * 60)}</Text>
             <Text style={s.summaryLabel}>Daily avg</Text>
           </View>
         </View>
@@ -110,7 +104,7 @@ export default function StatsScreen() {
               const today = i === (new Date().getDay() + 6) % 7;
               return (
                 <View key={i} style={s.barCol}>
-                  <Text style={s.barValue}>{mins > 0 ? formatHMS(mins) : ""}</Text>
+                  <Text style={s.barValue}>{mins > 0 ? formatStudyTime(mins * 60) : ""}</Text>
                   <View style={s.barTrack}>
                     <View style={[s.barFill, {
                       height: `${Math.max(pct * 100, mins > 0 ? 4 : 0)}%` as any,
@@ -139,7 +133,8 @@ export default function StatsScreen() {
                     <View style={s.breakdownBarTrack}>
                       <View style={[s.breakdownBarFill, { width: `${Math.round(pct * 100)}%` as any, backgroundColor: cat.color }]} />
                     </View>
-                    <Text style={[s.breakdownTime, { color: cat.color }]}>{formatHMS(minutes)}</Text>
+
+                    <Text style={[s.breakdownTime, { color: cat.color }]}>{formatStudyTime(minutes * 60)}</Text>
                   </View>
                 );
               })}

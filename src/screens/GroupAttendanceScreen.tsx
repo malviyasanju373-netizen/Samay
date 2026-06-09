@@ -8,6 +8,7 @@ import { useGroup } from "@/hooks/useGroup";
 import { useTheme } from "@/context/ThemeContext";
 import { getCurrentUserUid, requireFirestore } from "@/firebase";
 import { getTodayDateKey, subscribeToAttendanceForDate } from "@/services/attendance";
+import { formatStudyTime } from "@/utils/timeFormat";
 import { LoadingState, ErrorState } from "@/components/UIStates";
 import { calculateAttendanceStreaks, type AttendanceStreakMember } from "@/screens/GroupAttendanceStreaksScreen";
 
@@ -330,7 +331,7 @@ export default function GroupAttendanceScreen({ route, navigation }: any) {
                   <View key={member.uid || `study-${idx}`} style={s.rankingRow}>
                     <Text style={s.rankText}>#{idx + 1}</Text>
                     <Text style={s.memberName} numberOfLines={1}>{member.displayName || member.name || "User"}</Text>
-                    <Text style={s.scoreText}>{Math.round((member.totalFocusMinutes || 0) / 60)}h</Text>
+                    <Text style={s.scoreText}>{formatStudyTime(member.totalFocusSeconds ?? (member.totalFocusMinutes || 0) * 60)}</Text>
                   </View>
                 ))
               )}

@@ -6,6 +6,7 @@ export type LeaderboardEntry = {
   uid: string;
   displayName: string;
   totalFocusMinutes: number;
+  totalFocusSeconds?: number;
   rank: number;
 };
 
@@ -22,6 +23,7 @@ async function buildLeaderboardEntries(
     docs.map(async (d, i) => {
       const data = d.data();
       const totalFocusMinutes = typeof data.totalFocusMinutes === "number" ? data.totalFocusMinutes : 0;
+      const totalFocusSeconds = typeof data.totalFocusSeconds === "number" ? data.totalFocusSeconds : undefined;
       let displayName = data.displayName || "Anonymous";
 
       if (!data.displayName) {
@@ -37,7 +39,7 @@ async function buildLeaderboardEntries(
         }
       }
 
-      return { uid: d.id, displayName, totalFocusMinutes, rank: i + 1 };
+      return { uid: d.id, displayName, totalFocusMinutes, totalFocusSeconds, rank: i + 1 };
     })
   );
 }

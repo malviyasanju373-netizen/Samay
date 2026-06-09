@@ -16,6 +16,7 @@ import {
   getPendingJoinRequests,
 } from "@/services/groups";
 import { useTheme } from "@/context/ThemeContext";
+import { formatStudyTime } from "@/utils/timeFormat";
 import { LoadingState, ErrorState } from "@/components/UIStates";
 
 export default function GroupDetailScreen({ route, navigation }: any) {
@@ -303,7 +304,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
             </View>
             <View style={s.statItem}>
               <Text style={s.statLabel}>Study Time</Text>
-              <Text style={s.statValue}>{group?.totalStudyTime ?? 0}h</Text>
+              <Text style={s.statValue}>{formatStudyTime(group?.totalStudyTimeSeconds ?? (group?.totalStudyTime || 0) * 3600)}</Text>
             </View>
             <View style={s.statItem}>
               <Text style={s.statLabel}>Cam Study</Text>

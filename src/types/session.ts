@@ -27,6 +27,7 @@ export type FocusSession = {
   startTime: FirebaseFirestoreTypes.Timestamp;
   endTime: FirebaseFirestoreTypes.Timestamp | null;
   durationMinutes: number;
+  durationSeconds?: number;
   targetMinutes: number | null;
   isCompleted: boolean;
 };

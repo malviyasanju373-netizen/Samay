@@ -59,6 +59,19 @@ export function useFocusTimer() {
 
         const saved: ActiveSession = JSON.parse(raw);
         console.log("[SESSION LOADED]", saved);
+
+        if (
+          !saved ||
+          typeof saved.startedAt !== "number" ||
+          isNaN(saved.startedAt) ||
+          typeof saved.elapsedSeconds !== "number" ||
+          isNaN(saved.elapsedSeconds)
+        ) {
+          console.warn("[TIMER EXCEPTION] Invalid session state loaded:", saved);
+          AsyncStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION).catch(() => {});
+          return;
+        }
+
         const savedState: TimerState = saved.timerState === "paused" ? "paused" : "running";
         const elapsed = savedState === "running"
           ? saved.elapsedSeconds + Math.floor((Date.now() - saved.startedAt) / 1000)
@@ -234,73 +247,39 @@ export function useFocusTimer() {
 
   const stop = useCallback(async () => {
     if (!activeSession) return 0;
-    console.log("[TIMER STOP]");
-    console.log("[STOP EXECUTED]");
-    console.log("[BEFORE STOP] activeSession =", activeSession);
+
     setError(null);
     const uid = auth().currentUser?.uid;
     if (!uid) {
       setError("Sign in to save this focus session.");
       return 0;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     }
+
     const durationMinutes = Math.max(1, Math.floor(elapsedSeconds / 60));
+    const durationSeconds = Math.max(0, elapsedSeconds);
+
     try {
       const savedRaw = await AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
       const saved = savedRaw ? JSON.parse(savedRaw) : null;
-      console.log("[SESSION LOADED]", saved);
       const groupId = saved?.groupId || null;
-      console.log("[STOP GROUP ID]", groupId);
 
-      await completeSession(uid, activeSession.sessionId, durationMinutes);
-      console.log("[STOP] completeSession finished");
-      console.log("[STOP] groupId =", groupId);
-      console.log("[STOP] uid =", uid);
-      console.log("[STOP] durationMinutes =", durationMinutes);
+      await completeSession(uid, activeSession.sessionId, durationMinutes, durationSeconds, groupId);
 
       if (groupId) {
-              console.log("[STOP] about to call updateGroupMemberMinutes");
-              console.log("[LEADERBOARD UPDATE]");
-              await updateGroupMemberMinutes(groupId, uid, durationMinutes);
-              console.log("[STOP] about to call updateAttendance");
-              console.log("[ATTENDANCE WRITE]");
-              console.log("[ATTENDANCE WRITING]");
-              await updateAttendance(
-                groupId,
-                uid,
-                auth().currentUser?.displayName || "User",
-                durationMinutes
-              ).catch((err: any) => {
-                console.error("[STOP] updateAttendance error:", err?.message);
-              });
-              await stopActiveFocusSession(groupId, uid).catch(() => {});
-            }
+        await updateGroupMemberMinutes(groupId, uid, durationMinutes, durationSeconds);
+        await updateAttendance(
+          groupId,
+          uid,
+          auth().currentUser?.displayName || "User",
+          durationMinutes
+        ).catch(() => {});
+        await stopActiveFocusSession(groupId, uid).catch(() => {});
+      }
 
-      console.log("[TIMER COMPLETE]");
       setTimerState("idle");
       setElapsedSeconds(0);
       setActiveSession(null);
       await AsyncStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION);
-      console.log("[SESSION CLEANED]");
       return durationMinutes;
     } catch (err: any) {
       setTimerState("paused");

@@ -8,6 +8,28 @@ export function formatMinutesToHoursMinutes(totalMinutes: number): string {
   return `${totalMinutes}m`;
 }
 
+export function formatStudyTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+
+  if (hours > 0) {
+    if (minutes > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${hours}h`;
+  }
+
+  if (minutes > 0) {
+    if (secs > 0) {
+      return `${minutes}m ${secs}s`;
+    }
+    return `${minutes}m`;
+  }
+
+  return `${secs}s`;
+}
+
 export function formatElapsedTime(elapsedSeconds: number): string {
   const hours = Math.floor(elapsedSeconds / 3600);
   const minutes = Math.floor((elapsedSeconds % 3600) / 60);
@@ -59,4 +81,8 @@ export function isCurrentlyStudying(activeSessionStartedAtMs?: number): boolean 
   const diffMins = (now - activeSessionStartedAtMs) / 60000;
   // Consider studying if session started less than 6 hours ago
   return diffMins < 360;
+}
+
+export function minutesToSeconds(minutes: number): number {
+  return (minutes || 0) * 60;
 }

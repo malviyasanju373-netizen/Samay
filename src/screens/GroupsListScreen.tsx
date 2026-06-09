@@ -9,6 +9,7 @@ import { subscribeToGroupsList } from "@/services/groups";
 import { useTheme } from "@/context/ThemeContext";
 import { Group } from "@/types/group";
 import { LoadingState, EmptyState, ErrorState } from "@/components/UIStates";
+import { formatStudyTime } from "@/utils/timeFormat";
 
 interface EnhancedGroup extends Group {
   rank?: number;
@@ -288,7 +289,8 @@ const GroupCard = memo(function GroupCard({
           </View>
           <View style={styles.groupStatItem}>
             <Ionicons name="time" size={14} color="#FBBF24" />
-            <Text style={styles.groupStatText}>{group.totalStudyTime ?? 0}h</Text>
+
+            <Text style={styles.groupStatText}>{formatStudyTime((group.totalStudyTime ?? 0) * 3600)}</Text>
           </View>
       </View>
     </TouchableOpacity>

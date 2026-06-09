@@ -81,7 +81,7 @@ export async function createInitialUserProfile(
         tx.set(reservationRef, { uid });
         tx.set(
           db.collection("users").doc(uid),
-          { totalFocusMinutes: 0, displayName: profile.displayName || "Anonymous" },
+          { totalFocusMinutes: 0, totalFocusSeconds: 0, displayName: profile.displayName || "Anonymous" },
           { merge: true }
         );
       });

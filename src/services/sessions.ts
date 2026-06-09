@@ -120,14 +120,22 @@ export async function cancelSession(uid: string, sessionId: string): Promise<voi
   await batch.commit();
 }
 
-export async function completeSession(uid: string, sessionId: string, durationMinutes: number, groupId?: string | null): Promise<void> {
+export async function completeSession(uid: string, sessionId: string, durationMinutes: number, durationSeconds: number, groupId?: string | null): Promise<void> {
+  console.log("🔥 COMPLETE SESSION CALLED", {
+    uid,
+    sessionId,
+    durationMinutes,
+    durationSeconds,
+    groupId
+  });
   const db = requireFirestore();
-  console.log("[completeSession] START", { uid, sessionId, durationMinutes, groupId });
+  console.log("[completeSession] START", { uid, sessionId, durationMinutes, durationSeconds, groupId });
   
   const batch = db.batch();
   batch.update(db.collection("sessions").doc(sessionId), {
     endTime: firestore.FieldValue.serverTimestamp(),
     durationMinutes,
+    durationSeconds,
     isCompleted: true,
   });
   batch.set(
@@ -142,10 +150,11 @@ export async function completeSession(uid: string, sessionId: string, durationMi
     },
     { merge: true }
   );
+  console.log("🔥 BEFORE batch.commit() in completeSession");
   await batch.commit();
   console.log("[completeSession] Batch committed (session marked isCompleted, user isStudying=false)");
 
-  if (durationMinutes > 0) {
+  if (durationMinutes > 0 || durationSeconds > 0) {
     const updateUserTotalFocusConfig = {
       collection: `users/${uid}`,
       whereClauses: [],
@@ -153,14 +162,27 @@ export async function completeSession(uid: string, sessionId: string, durationMi
     };
     try {
       logFirestoreQueryStart(updateUserTotalFocusConfig);
+
+      console.log({
+        durationMinutes,
+        durationSeconds,
+        typeMinutes: typeof durationMinutes,
+        typeSeconds: typeof durationSeconds
+      });
+
+      const safeDurationMinutes = typeof durationMinutes === "number" && !isNaN(durationMinutes) ? durationMinutes : 0;
+      const safeDurationSeconds = typeof durationSeconds === "number" && !isNaN(durationSeconds) ? durationSeconds : 0;
+
       await db.collection("users").doc(uid).update({
-        totalFocusMinutes: firestore.FieldValue.increment(durationMinutes),
+        totalFocusMinutes: firestore.FieldValue.increment(safeDurationMinutes),
+        totalFocusSeconds: firestore.FieldValue.increment(safeDurationSeconds),
       });
     } catch (err: any) {
       logFirestoreQueryError("completeSession:updateUserTotalFocusMinutes", err, updateUserTotalFocusConfig);
       throw err;
     }
     console.log("[completeSession] users/{uid}.totalFocusMinutes incremented by", durationMinutes);
+    console.log("[completeSession] users/{uid}.totalFocusSeconds incremented by", durationSeconds);
     console.log("[completeSession] Firestore path: users/", uid);
     
     // Fetch updated user doc to verify
@@ -182,6 +204,7 @@ export async function completeSession(uid: string, sessionId: string, durationMi
       console.log("[completeSession] VERIFICATION: users/{uid} after update", {
         uid,
         totalFocusMinutes: userData?.totalFocusMinutes,
+        totalFocusSeconds: userData?.totalFocusSeconds,
       });
     }
 
@@ -193,11 +216,16 @@ export async function completeSession(uid: string, sessionId: string, durationMi
           (sum, m) => sum + (m.totalFocusMinutes || 0),
           0
         );
+        const totalSeconds = members.reduce(
+          (sum, m) => sum + (m.totalFocusSeconds || (m.totalFocusMinutes || 0) * 60),
+          0
+        );
 
         await db.collection("groups")
           .doc(groupId)
           .update({
             totalStudyTime: Math.round(totalTime / 60),
+            totalStudyTimeSeconds: totalSeconds,
           });
       } catch (err: any) {
         console.error("[completeSession] failed to update group totalStudyTime:", {

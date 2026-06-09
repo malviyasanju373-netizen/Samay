@@ -7,6 +7,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { requireFirestore } from "@/firebase";
 import { useGroupAttendance } from "@/hooks/useGroupAttendance";
 import { getSecondaryIdentifier } from "@/utils/memberIdentification";
+import { formatStudyTime } from "@/utils/timeFormat";
 import type { RankedMember } from "@/hooks/useGroupAttendance";
 
 type AttendanceByDate = Record<string, Record<string, { present: boolean; displayName: string; focusMinutes: number }>>;
@@ -287,7 +288,7 @@ export default function GroupMemberAttendanceScreen({ route, navigation }: any) 
                   <Text style={s.statText}>Tracked: {member.totalTrackedDays}</Text>
                   <Text style={s.statText}>Current: {member.currentStreak}</Text>
                   <Text style={s.statText}>Longest: {member.longestStreak}</Text>
-                  <Text style={s.statText}>Focus: {member.totalFocusMinutes} min</Text>
+                  <Text style={s.statText}>Focus: {formatStudyTime(member.totalFocusMinutes * 60)}</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -313,7 +314,8 @@ export default function GroupMemberAttendanceScreen({ route, navigation }: any) 
                   <Text style={s.detailStat}>Total Days: {selectedMember.totalTrackedDays}</Text>
                   <Text style={s.detailStat}>Current Streak: {selectedMember.currentStreak}</Text>
                   <Text style={s.detailStat}>Longest Streak: {selectedMember.longestStreak}</Text>
-                  <Text style={s.detailStat}>Total Focus: {selectedMember.totalFocusMinutes} min</Text>
+
+                  <Text style={s.detailStat}>Total Focus: {formatStudyTime(selectedMember.totalFocusMinutes * 60)}</Text>
                 </View>
 
                 <Text style={s.sectionTitle}>Attendance Calendar</Text>

@@ -33,6 +33,8 @@ function normalizeGroup(id: string, data: Record<string, any>): Group {
     maxMembers: Math.max(1, Number(data.maxMembers || 50)),
     attendancePercentage: Number(data.attendancePercentage ?? 0),
     totalStudyTime: Number(data.totalStudyTime ?? 0),
+    totalStudyTimeSeconds: data.totalStudyTimeSeconds != null ? Number(data.totalStudyTimeSeconds) : undefined,
+    totalFocusSeconds: data.totalFocusSeconds != null ? Number(data.totalFocusSeconds) : undefined,
     camStudyHours: Number(data.camStudyHours ?? 0),
     isPrivate: Boolean(data.isPrivate ?? false),
   } as Group;
@@ -106,6 +108,7 @@ export async function createGroup(
     displayName: creatorDisplayName,
     photoURL: creatorPhotoURL || null,
     totalFocusMinutes: 0,
+    totalFocusSeconds: 0,
     studyTime: 0,
     attendance: 0,
     isOnline: false,
@@ -202,40 +205,50 @@ export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
     const snap = await db.collection("groups").doc(groupId).collection("members").get();
     console.log("[getGroupMembers] Found", snap.docs.length, "members in group");
     
-    // Fetch totalFocusMinutes from users collection for each member
+    // Fetch totalFocusMinutes and totalFocusSeconds from users collection for each member
     const members = await Promise.all(
       snap.docs.map(async (d) => {
         const uid = d.id;
         const memberData = d.data();
         const memberDocValue = Number(memberData.totalFocusMinutes || 0);
+        const memberDocSecondsValue = memberData.totalFocusSeconds != null 
+          ? Number(memberData.totalFocusSeconds) 
+          : memberDocValue * 60;
         
         console.log("[getGroupMembers]", {
           uid,
           "groups/{groupId}/members/{uid}.totalFocusMinutes": memberDocValue,
+          "groups/{groupId}/members/{uid}.totalFocusSeconds": memberDocSecondsValue,
           firestore_path_member_doc: `groups/${groupId}/members/${uid}`,
         });
         
         let totalFocusMinutes = memberDocValue;
+        let totalFocusSeconds = memberDocSecondsValue;
         
         try {
           const userSnap = await db.collection("users").doc(uid).get();
           if (userSnap.exists()) {
             const userData = userSnap.data();
             const fetchedMinutes = Number(userData?.totalFocusMinutes || 0);
+            const fetchedSeconds = userData?.totalFocusSeconds != null 
+              ? Number(userData.totalFocusSeconds) 
+              : fetchedMinutes * 60;
             console.log("[getGroupMembers]", {
               uid,
               "users/{uid}.totalFocusMinutes": fetchedMinutes,
+              "users/{uid}.totalFocusSeconds": fetchedSeconds,
               firestore_path_user_doc: `users/${uid}`,
               synced: memberDocValue === fetchedMinutes,
             });
             totalFocusMinutes = fetchedMinutes;
+            totalFocusSeconds = fetchedSeconds;
           }
         } catch (err: any) {
           console.error(`[getGroupMembers] Failed to fetch user ${uid}:`, err?.message);
         }
         
         const normalized = normalizeGroupMember(uid, memberData);
-        return { ...normalized, totalFocusMinutes, studyTime: totalFocusMinutes };
+        return { ...normalized, totalFocusMinutes, totalFocusSeconds, studyTime: totalFocusMinutes };
       })
     );
     
@@ -564,40 +577,50 @@ export function subscribeToGroupMembers(
           try {
             console.log("[subscribeToGroupMembers] Snapshot received for groupId:", groupId, "member count:", snap.docs.length);
             
-            // Fetch totalFocusMinutes from users collection for each member
+            // Fetch totalFocusMinutes and totalFocusSeconds from users collection for each member
             const members = await Promise.all(
               snap.docs.map(async (d) => {
                 const uid = d.id;
                 const memberData = d.data();
                 const memberDocValue = Number(memberData.totalFocusMinutes || 0);
+                const memberDocSecondsValue = memberData.totalFocusSeconds != null 
+                  ? Number(memberData.totalFocusSeconds) 
+                  : memberDocValue * 60;
                 
                 console.log("[subscribeToGroupMembers]", {
                   uid,
                   "groups/{groupId}/members/{uid}.totalFocusMinutes": memberDocValue,
+                  "groups/{groupId}/members/{uid}.totalFocusSeconds": memberDocSecondsValue,
                   firestore_path: `groups/${groupId}/members/${uid}`,
                 });
                 
                 let totalFocusMinutes = memberDocValue;
+                let totalFocusSeconds = memberDocSecondsValue;
                 
                 try {
                   const userSnap = await db.collection("users").doc(uid).get();
                   if (userSnap.exists()) {
                     const userData = userSnap.data();
                     const fetchedMinutes = Number(userData?.totalFocusMinutes || 0);
+                    const fetchedSeconds = userData?.totalFocusSeconds != null 
+                      ? Number(userData.totalFocusSeconds) 
+                      : fetchedMinutes * 60;
                     console.log("[subscribeToGroupMembers]", {
                       uid,
                       "users/{uid}.totalFocusMinutes": fetchedMinutes,
+                      "users/{uid}.totalFocusSeconds": fetchedSeconds,
                       firestore_path: `users/${uid}`,
                       synced: memberDocValue === fetchedMinutes,
                     });
                     totalFocusMinutes = fetchedMinutes;
+                    totalFocusSeconds = fetchedSeconds;
                   }
                 } catch (err: any) {
                   console.error(`[subscribeToGroupMembers] Failed to fetch user ${uid}:`, err?.message);
                 }
                 
                 const normalized = normalizeGroupMember(uid, memberData);
-                return { ...normalized, totalFocusMinutes, studyTime: totalFocusMinutes };
+                return { ...normalized, totalFocusMinutes, totalFocusSeconds, studyTime: totalFocusMinutes };
               })
             );
             const sorted = members.sort((a, b) => b.totalFocusMinutes - a.totalFocusMinutes);
@@ -702,14 +725,26 @@ export function subscribeToGroupsList(
   }
 }
 
-export async function updateGroupMemberMinutes(groupId: string, uid: string, minutesToAdd: number): Promise<void> {
+export async function updateGroupMemberMinutes(groupId: string, uid: string, minutesToAdd: number, secondsToAdd: number): Promise<void> {
   console.log("[GROUP UPDATE] entered");
   if (!groupId || !uid || !Number.isFinite(minutesToAdd)) return;
 
   const documentPath = `groups/${groupId}/members/${uid}`;
+
+  console.log({
+    durationMinutes: minutesToAdd,
+    durationSeconds: secondsToAdd,
+    typeMinutes: typeof minutesToAdd,
+    typeSeconds: typeof secondsToAdd
+  });
+
+  const safeDurationMinutes = typeof minutesToAdd === "number" && !isNaN(minutesToAdd) ? minutesToAdd : 0;
+  const safeDurationSeconds = typeof secondsToAdd === "number" && !isNaN(secondsToAdd) ? secondsToAdd : 0;
+
   const payload = {
-    totalFocusMinutes: firestore.FieldValue.increment(minutesToAdd),
-    studyTime: firestore.FieldValue.increment(minutesToAdd),
+    totalFocusMinutes: firestore.FieldValue.increment(safeDurationMinutes),
+    studyTime: firestore.FieldValue.increment(safeDurationMinutes),
+    totalFocusSeconds: firestore.FieldValue.increment(safeDurationSeconds),
   };
 
   try {
