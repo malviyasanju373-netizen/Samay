@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { subscribeToGroupMembers } from "@/services/groups";
 import { subscribeToStudyingStatusesForUids } from "@/services/sessions";
 import { GroupLeaderboardEntry, GroupMember } from "@/types/group";
+import { calculateRankings } from "@/utils/leaderboardUtils";
 
 export function useGroupMembers(groupId?: string | null) {
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -33,11 +34,12 @@ export function useGroupMembers(groupId?: string | null) {
   }, [members, statusMap]);
 
   const leaderboard = useMemo<GroupLeaderboardEntry[]>(() => {
-    const entries = mergedMembers.map((member, i) => ({ ...member, rank: i + 1 }));
-    entries.forEach((entry) => {
-      console.log(`[useGroupMembers leaderboard] rank: ${entry.rank}, uid: ${entry.uid}, rendered minutes: ${entry.totalFocusMinutes}`);
-    });
-    return entries;
+    const entriesToRank = mergedMembers.map((m) => ({
+      ...m,
+      groupFocusSeconds: m.totalFocusSeconds ?? ((m.totalFocusMinutes || 0) * 60)
+    }));
+    
+    return calculateRankings(entriesToRank, "groupFocusSeconds");
   }, [mergedMembers]);
 
   useEffect(() => {

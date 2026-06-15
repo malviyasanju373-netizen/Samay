@@ -171,7 +171,7 @@ export default function GroupsListScreen({ navigation }: any) {
             setError(null);
           }}
           retryLabel="Try Again"
-          icon="wifi-off-outline"
+          icon="alert-circle-outline"
         />
       </SafeAreaView>
     );
@@ -325,3 +325,6 @@ function createStyles(theme: any) {
     groupStatText: { color: colors.text, fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.medium },
   });
 }
+
+
+

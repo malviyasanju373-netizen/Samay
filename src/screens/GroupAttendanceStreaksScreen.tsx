@@ -10,10 +10,12 @@ import { useGroupMembers } from "@/hooks/useGroupMembers";
 import { getSecondaryIdentifier } from "@/utils/memberIdentification";
 import type { GroupMember } from "@/types/group";
 
+import { calculateRankings, BaseLeaderboardEntry } from "@/utils/leaderboardUtils";
+
 type AttendanceByDate = Record<string, Record<string, { present: boolean; displayName: string; focusMinutes: number }>>;
 type TodayAttendanceRecord = { uid: string; displayName: string; focusMinutes: number; present: boolean };
 
-export type AttendanceStreakMember = {
+export type AttendanceStreakMember = BaseLeaderboardEntry & {
   uid: string;
   displayName: string;
   streak: number;
@@ -26,46 +28,50 @@ export function calculateAttendanceStreaks(
   const dateKeys = Object.keys(attendanceByDate).sort((a, b) => b.localeCompare(a));
   if (dateKeys.length === 0) return [];
 
-  return members
-    .map((member, originalIndex) => {
-      let streak = 0;
+  const rawStreaks = members.map((member) => {
+    let streak = 0;
 
-      for (const dateKey of dateKeys) {
-        const attendanceRecord = attendanceByDate[dateKey]?.[member.uid];
-        if (attendanceRecord?.present === true) {
-          streak += 1;
-          continue;
-        }
-        break;
+    for (const dateKey of dateKeys) {
+      const attendanceRecord = attendanceByDate[dateKey]?.[member.uid];
+      if (attendanceRecord?.present === true) {
+        streak += 1;
+        continue;
       }
+      break;
+    }
 
-      return {
-        uid: member.uid,
-        displayName: member.displayName || member.name || "User",
-        streak,
-        originalIndex,
-      };
-    })
-    .sort((a, b) => b.streak - a.streak || a.originalIndex - b.originalIndex)
-    .map(({ originalIndex, ...member }) => member);
+    return {
+      uid: member.uid,
+      displayName: member.displayName || member.name || "User",
+      streak,
+      currentStreak: streak,
+      totalSessions: (member as any).totalSessions || 0,
+      joinedAtMs: (member as any).joinedAtMs || Number.MAX_SAFE_INTEGER,
+    };
+  });
+
+  return calculateRankings(rawStreaks, "currentStreak") as AttendanceStreakMember[];
 }
 
 function buildFallbackStreaks(
   members: GroupMember[],
   todayRecords: TodayAttendanceRecord[]
 ): AttendanceStreakMember[] {
-  return members
-    .map((member, originalIndex) => {
-      const todayRecord = todayRecords.find((record) => record.uid === member.uid);
-      return {
-        uid: member.uid,
-        displayName: todayRecord?.displayName || member.displayName || member.name || "User",
-        streak: todayRecord?.present ? 1 : 0,
-        originalIndex,
-      };
-    })
-    .sort((a, b) => b.streak - a.streak || a.originalIndex - b.originalIndex)
-    .map(({ originalIndex, ...member }) => member);
+  const rawStreaks = members.map((member) => {
+    const todayRecord = todayRecords.find((record) => record.uid === member.uid);
+    const streak = todayRecord?.present ? 1 : 0;
+    
+    return {
+      uid: member.uid,
+      displayName: todayRecord?.displayName || member.displayName || member.name || "User",
+      streak,
+      currentStreak: streak,
+      totalSessions: (member as any).totalSessions || 0,
+      joinedAtMs: (member as any).joinedAtMs || Number.MAX_SAFE_INTEGER,
+    };
+  });
+
+  return calculateRankings(rawStreaks, "currentStreak") as AttendanceStreakMember[];
 }
 
 function formatDayCount(days: number): string {

@@ -1,14 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { FirebaseFirestoreTypes } from "@react-native-firebase/firestore";
 import { requireFirestore } from "@/firebase";
+import { calculateRankings, BaseLeaderboardEntry, RankedLeaderboardEntry } from "@/utils/leaderboardUtils";
 
-export type LeaderboardEntry = {
-  uid: string;
+export type LeaderboardEntry = RankedLeaderboardEntry<BaseLeaderboardEntry & {
   displayName: string;
   totalFocusMinutes: number;
-  totalFocusSeconds?: number;
-  rank: number;
-};
+}>;
 
 type Cache = { data: LeaderboardEntry[]; fetchedAt: number };
 
@@ -19,11 +17,15 @@ async function buildLeaderboardEntries(
   docs: FirebaseFirestoreTypes.QueryDocumentSnapshot[]
 ): Promise<LeaderboardEntry[]> {
   const db = requireFirestore();
-  return Promise.all(
-    docs.map(async (d, i) => {
+  const rawEntries = await Promise.all(
+    docs.map(async (d) => {
       const data = d.data();
-      const totalFocusMinutes = typeof data.totalFocusMinutes === "number" ? data.totalFocusMinutes : 0;
-      const totalFocusSeconds = typeof data.totalFocusSeconds === "number" ? data.totalFocusSeconds : undefined;
+      // Primary sort key: totalFocusSeconds (raw numeric)
+      const totalFocusSeconds = typeof data.totalFocusSeconds === "number" ? data.totalFocusSeconds : 0;
+      const totalFocusMinutes = typeof data.totalFocusMinutes === "number" ? data.totalFocusMinutes : Math.floor(totalFocusSeconds / 60);
+      const totalSessions = typeof data.totalSessions === "number" ? data.totalSessions : 0;
+      const currentStreak = typeof data.currentStreak === "number" ? data.currentStreak : 0;
+      const joinedAtMs = data.createdAt?.toMillis?.() ?? 0;
       let displayName = data.displayName || "Anonymous";
 
       if (!data.displayName) {
@@ -39,9 +41,20 @@ async function buildLeaderboardEntries(
         }
       }
 
-      return { uid: d.id, displayName, totalFocusMinutes, totalFocusSeconds, rank: i + 1 };
+      return {
+        uid: d.id,
+        displayName,
+        totalFocusMinutes,
+        totalFocusSeconds,
+        totalSessions,
+        currentStreak,
+        joinedAtMs,
+      };
     })
   );
+
+  // Sort by totalFocusSeconds descending using the central utility
+  return calculateRankings(rawEntries, "totalFocusSeconds");
 }
 
 export async function getLeaderboard(forceRefresh = false): Promise<LeaderboardEntry[]> {
@@ -56,18 +69,20 @@ export async function getLeaderboard(forceRefresh = false): Promise<LeaderboardE
   }
 
   const db = requireFirestore();
+  // Order by totalFocusSeconds descending for correct Firestore-level sorting
   const snap = await db
     .collection("users")
-    .orderBy("totalFocusMinutes", "desc")
-    .limit(10)
+    .orderBy("totalFocusSeconds", "desc")
+    .limit(50)
     .get();
+  
   const entries = await buildLeaderboardEntries(snap.docs);
 
   try {
-    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data: entries, fetchedAt: Date.now() }));
+    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data: entries.slice(0, 10), fetchedAt: Date.now() }));
   } catch {}
 
-  return entries;
+  return entries.slice(0, 10);
 }
 
 export async function getCachedFetchTime(): Promise<number | null> {
@@ -85,16 +100,17 @@ export function subscribeToLeaderboard(
   const db = requireFirestore();
   return db
     .collection("users")
-    .orderBy("totalFocusMinutes", "desc")
-    .limit(10)
+    .orderBy("totalFocusSeconds", "desc")
+    .limit(50)
     .onSnapshot(
       async (snap) => {
         try {
           const entries = await buildLeaderboardEntries(snap.docs);
+          const top10 = entries.slice(0, 10);
           try {
-            await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data: entries, fetchedAt: Date.now() }));
+            await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data: top10, fetchedAt: Date.now() }));
           } catch {}
-          onUpdate(entries);
+          onUpdate(top10);
         } catch (err) {
           onError?.(err instanceof Error ? err : new Error(String(err)));
         }

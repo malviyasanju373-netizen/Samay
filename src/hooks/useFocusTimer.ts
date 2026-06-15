@@ -314,6 +314,16 @@ export function useFocusTimer() {
     }
   }, [activeSession]);
 
+  const reset = useCallback(async () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    setTimerState("idle");
+    setElapsedSeconds(0);
+    setActiveSession(null);
+    setError(null);
+    await AsyncStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION);
+  }, []);
+
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
   const progress = activeSession?.targetMinutes
@@ -334,5 +344,6 @@ export function useFocusTimer() {
     resume,
     stop,
     cancel,
+    reset,
   };
 }

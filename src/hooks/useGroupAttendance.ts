@@ -8,6 +8,8 @@ import {
 } from "@/services/attendance";
 import { subscribeToGroupMembers } from "@/services/groups";
 
+import { calculateRankings } from "@/utils/leaderboardUtils";
+
 // ─────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────
@@ -33,6 +35,10 @@ export type RankedMember = {
   presentDays: number;
   totalDays: number;
   totalFocusMinutes: number;
+  currentStreak?: number;
+  totalSessions?: number;
+  joinedAtMs?: number;
+  rank?: number;
 };
 
 type GroupMember = {
@@ -40,6 +46,9 @@ type GroupMember = {
   displayName: string;
   email?: string;
   name?: string;
+  currentStreak?: number;
+  totalSessions?: number;
+  joinedAtMs?: number;
 };
 
 export type GroupAttendanceData = {
@@ -115,14 +124,19 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
     const unsubscribe = subscribeToGroupMembers(
       groupId,
       (members) => {
-        const normalizedMembers = Array.isArray(members)
-          ? members
-              .map((member: any) => ({
-                uid: member.uid ?? member.id ?? "",
-                displayName: member.displayName ?? member.name ?? "User",
-              }))
-              .filter((member) => member.uid)
-          : [];
+          const normalizedMembers = Array.isArray(members)
+            ? members
+                .map((member: any) => ({
+                  uid: member.uid ?? member.id ?? "",
+                  displayName: member.displayName ?? member.name ?? "User",
+                  email: member.email,
+                  name: member.name,
+                  currentStreak: member.currentStreak,
+                  totalSessions: member.totalSessions,
+                  joinedAtMs: member.joinedAtMs,
+                }))
+                .filter((member) => member.uid)
+            : [];
 
         setGroupMembers(normalizedMembers);
         setGroupMemberCount(Array.isArray(members) ? members.length : 0);
@@ -211,62 +225,69 @@ export function useGroupAttendance(groupId: string | null): GroupAttendanceData 
     return {
       email: member?.email,
       username: member?.name,
+      currentStreak: member?.currentStreak || 0,
+      totalSessions: member?.totalSessions || 0,
+      joinedAtMs: member?.joinedAtMs || Number.MAX_SAFE_INTEGER,
     };
   };
 
   // ── Derived: ranked members ──
   const fallbackChampionsUsed = summaryUids.length === 0 && todayRecords.length > 0;
-  const rankedMembers: RankedMember[] = fallbackChampionsUsed
-    ? groupMembers
-        .map((member) => {
-          const todayRecord = todayRecords.find((r) => r.uid === member.uid);
-          const present = todayRecord?.present ?? false;
+  
+  let rawRankedMembers = fallbackChampionsUsed
+    ? groupMembers.map((member) => {
+        const todayRecord = todayRecords.find((r) => r.uid === member.uid);
+        const present = todayRecord?.present ?? false;
 
-          return {
-            uid: member.uid,
-            displayName: todayRecord?.displayName ?? member.displayName,
-            email: member.email,
-            username: member.name,
-            attendancePercentage: present ? 100 : 0,
-            presentDays: present ? 1 : 0,
-            totalDays: 1,
-            totalFocusMinutes: todayRecord?.focusMinutes ?? 0,
-          };
-        })
-        .sort((a, b) => b.attendancePercentage - a.attendancePercentage)
-    : summaryUids
-        .map((uid) => ({
+        return {
+          uid: member.uid,
+          displayName: todayRecord?.displayName ?? member.displayName,
+          email: member.email,
+          username: member.name,
+          attendanceRate: present ? 100 : 0,
+          attendancePercentage: present ? 100 : 0,
+          presentDays: present ? 1 : 0,
+          totalDays: 1,
+          totalFocusMinutes: todayRecord?.focusMinutes ?? 0,
+          currentStreak: member.currentStreak || 0,
+          totalSessions: member.totalSessions || 0,
+          joinedAtMs: member.joinedAtMs || Number.MAX_SAFE_INTEGER,
+        };
+      })
+    : summaryUids.map((uid) => {
+        let displayName = "User";
+        for (const dateKey of Object.keys(weeklyData)) {
+          const dayData = weeklyData[dateKey][uid];
+          if (dayData?.displayName) {
+            displayName = dayData.displayName;
+            break;
+          }
+        }
+        const todayRecord = todayRecords.find((r) => r.uid === uid);
+        if (todayRecord) {
+          displayName = todayRecord.displayName;
+        }
+
+        const s = summary[uid];
+        const memberInfo = getMemberEmailAndUsername(uid);
+        
+        return {
           uid,
-          displayName: "User",
-        }))
-        .map((member) => {
-          let displayName = member.displayName;
-          for (const dateKey of Object.keys(weeklyData)) {
-            const dayData = weeklyData[dateKey][member.uid];
-            if (dayData?.displayName) {
-              displayName = dayData.displayName;
-              break;
-            }
-          }
-          const todayRecord = todayRecords.find((r) => r.uid === member.uid);
-          if (todayRecord) {
-            displayName = todayRecord.displayName;
-          }
+          displayName,
+          email: memberInfo.email,
+          username: memberInfo.username,
+          attendanceRate: s.percentage,
+          attendancePercentage: s.percentage,
+          presentDays: s.presentDays,
+          totalDays: s.totalDays,
+          totalFocusMinutes: s.totalFocusMinutes,
+          currentStreak: memberInfo.currentStreak,
+          totalSessions: memberInfo.totalSessions,
+          joinedAtMs: memberInfo.joinedAtMs,
+        };
+      });
 
-          const s = summary[member.uid];
-          const { email, username } = getMemberEmailAndUsername(member.uid);
-          return {
-            uid: member.uid,
-            displayName,
-            email,
-            username,
-            attendancePercentage: s.percentage,
-            presentDays: s.presentDays,
-            totalDays: s.totalDays,
-            totalFocusMinutes: s.totalFocusMinutes,
-          };
-        })
-        .sort((a, b) => b.attendancePercentage - a.attendancePercentage);
+  const rankedMembers = calculateRankings(rawRankedMembers, "attendanceRate") as RankedMember[];
 
   // ── Diagnostic logs ──
   console.log("[TODAY RECORDS]", todayRecords);

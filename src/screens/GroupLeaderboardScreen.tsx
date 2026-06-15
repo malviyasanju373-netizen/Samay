@@ -6,6 +6,7 @@ import { useGroupMembers } from "@/hooks/useGroupMembers";
 import { useTheme } from "@/context/ThemeContext";
 import { LoadingState, ErrorState } from "@/components/UIStates";
 import { formatLiveElapsedTime, formatStudyTime } from "@/utils/timeFormat";
+import { getRankLabel } from "@/utils/leaderboardUtils";
 
 export default function GroupLeaderboardScreen({ route, navigation }: any) {
   const groupId = typeof route?.params?.groupId === "string" ? route.params.groupId : "";

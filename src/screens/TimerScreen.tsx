@@ -29,7 +29,7 @@ function pad(n: number) { return String(n).padStart(2, "0"); }
 
 export default function TimerScreen({ route, navigation }: any) {
   const { theme } = useTheme();
-  const { timerState, minutes, seconds, progress, activeSession, error, clearError, start, pause, resume, stop, cancel } = useFocusTimer();
+  const { timerState, minutes, seconds, progress, activeSession, error, clearError, start, pause, resume, stop, cancel, reset } = useFocusTimer();
   const s = createStyles(theme);
   console.log("[TIMER PARAMS]", JSON.stringify(route?.params));
   const routeParams = route?.params ?? {};
@@ -121,8 +121,13 @@ export default function TimerScreen({ route, navigation }: any) {
     setBusy(false);
   };
 
-  const handleDone = () => {
+  const handleDone = async () => {
     console.log("[TIMER RESET]");
+    await reset();
+    setSelectedCategoryId("other");
+    setSelectedTarget(25);
+    setCustomTitle("");
+    setShowStartModal(false);
     setShowCompletionModal(false);
     setCompletedMinutes(0);
   };

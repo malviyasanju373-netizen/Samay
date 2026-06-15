@@ -94,10 +94,7 @@ export default function GroupAttendanceScreen({ route, navigation }: any) {
     [rankedMembers]
   );
 
-  const studyTimeRanking = useMemo(
-    () => [...leaderboard].sort((a, b) => (b.totalFocusMinutes || 0) - (a.totalFocusMinutes || 0)),
-    [leaderboard]
-  );
+  const studyTimeRanking = leaderboard;
 
   const calculatedStreakMembers: AttendanceStreakMember[] = useMemo(
     () => calculateAttendanceStreaks(members, attendanceByDate),

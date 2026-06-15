@@ -6,6 +6,8 @@ import { useGroupAttendance } from "@/hooks/useGroupAttendance";
 import { useTheme } from "@/context/ThemeContext";
 import { LoadingState, ErrorState } from "@/components/UIStates";
 import { getSecondaryIdentifier } from "@/utils/memberIdentification";
+import { auth } from "@/firebase";
+import { getRankLabel, formatDuration, getUserRank } from "@/utils/leaderboardUtils";
 
 const MEDAL_CONFIG = [
   { emoji: "🥇", label: "Gold", color: "#F59E0B" },
@@ -73,6 +75,12 @@ export default function GroupAttendanceChampionsScreen({ route, navigation }: an
         <View style={{ width: 44 }} />
       </View>
       <ScrollView style={s.content} contentContainerStyle={s.scrollContent}>
+
+
+
+
+
+
         {/* Most Consistent Member Card */}
         {rankedMembers.length > 0 && (
           <View style={s.consistentCard}>

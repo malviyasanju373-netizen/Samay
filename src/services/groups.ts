@@ -1,5 +1,6 @@
 import firestore from "@react-native-firebase/firestore";
 import { auth, requireFirestore } from "@/firebase";
+import { calculateRankings } from "@/utils/leaderboardUtils";
 import { ActiveSession, Group, GroupMember, GroupLeaderboardEntry } from "@/types/group";
 
 // ... (existing code, added imports)
@@ -252,7 +253,14 @@ export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
       })
     );
     
-    return members.sort((a, b) => b.totalFocusMinutes - a.totalFocusMinutes);
+    const rankedMembers = calculateRankings(
+      members.map(m => ({
+        ...m,
+        groupFocusSeconds: m.totalFocusSeconds ?? ((m.totalFocusMinutes || 0) * 60)
+      })),
+      "groupFocusSeconds"
+    );
+    return rankedMembers as GroupMember[];
   } catch (err: any) {
     console.error("[getGroupMembers] Error:", err?.message);
     return [];
@@ -596,6 +604,9 @@ export function subscribeToGroupMembers(
                 
                 let totalFocusMinutes = memberDocValue;
                 let totalFocusSeconds = memberDocSecondsValue;
+                let totalSessions = 0;
+                let currentStreak = 0;
+                let joinedAtMs = Number.MAX_SAFE_INTEGER;
                 
                 try {
                   const userSnap = await db.collection("users").doc(uid).get();
@@ -605,7 +616,7 @@ export function subscribeToGroupMembers(
                     const fetchedSeconds = userData?.totalFocusSeconds != null 
                       ? Number(userData.totalFocusSeconds) 
                       : fetchedMinutes * 60;
-                    console.log("[subscribeToGroupMembers]", {
+                    console.log("[GroupMembers]", {
                       uid,
                       "users/{uid}.totalFocusMinutes": fetchedMinutes,
                       "users/{uid}.totalFocusSeconds": fetchedSeconds,
@@ -614,16 +625,25 @@ export function subscribeToGroupMembers(
                     });
                     totalFocusMinutes = fetchedMinutes;
                     totalFocusSeconds = fetchedSeconds;
+                    totalSessions = Number(userData?.totalSessions || 0);
+                    currentStreak = Number(userData?.currentStreak || 0);
+                    joinedAtMs = userData?.createdAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
                   }
                 } catch (err: any) {
-                  console.error(`[subscribeToGroupMembers] Failed to fetch user ${uid}:`, err?.message);
+                  console.error(`[GroupMembers] Failed to fetch user ${uid}:`, err?.message);
                 }
                 
                 const normalized = normalizeGroupMember(uid, memberData);
-                return { ...normalized, totalFocusMinutes, totalFocusSeconds, studyTime: totalFocusMinutes };
+                return { ...normalized, totalFocusMinutes, totalFocusSeconds, studyTime: totalFocusMinutes, totalSessions, currentStreak, joinedAtMs };
               })
             );
-            const sorted = members.sort((a, b) => b.totalFocusMinutes - a.totalFocusMinutes);
+            const sorted = calculateRankings(
+              members.map(m => ({
+                ...m,
+                groupFocusSeconds: m.totalFocusSeconds ?? ((m.totalFocusMinutes || 0) * 60)
+              })),
+              "groupFocusSeconds"
+            ) as GroupMember[];
             console.log("[subscribeToGroupMembers] Broadcasting update, top member:", {
               uid: sorted[0]?.uid,
               totalFocusMinutes: sorted[0]?.totalFocusMinutes,
@@ -768,3 +788,4 @@ export function timestampToMillis(value: any): number {
   if (typeof value === "number") return value;
   return 0;
 }
+

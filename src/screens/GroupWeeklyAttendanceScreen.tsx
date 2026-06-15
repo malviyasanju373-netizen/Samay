@@ -9,9 +9,11 @@ import { useGroupMembers } from "@/hooks/useGroupMembers";
 import { getSecondaryIdentifier } from "@/utils/memberIdentification";
 import type { GroupMember } from "@/types/group";
 
+import { calculateRankings, BaseLeaderboardEntry } from "@/utils/leaderboardUtils";
+
 type AttendanceByDate = Record<string, Record<string, { present: boolean; displayName: string; focusMinutes: number }>>;
 
-type WeeklyMember = {
+type WeeklyMember = BaseLeaderboardEntry & {
   uid: string;
   displayName: string;
   email?: string;
@@ -69,30 +71,35 @@ export function buildWeeklyAttendanceReport(
   const totalPossibleRecords = members.length * dateKeys.length;
   let presentRecords = 0;
 
-  const weeklyMembers = members
-    .map((member, originalIndex) => {
-      const presentDays = dateKeys.reduce((count, dateKey) => {
-        const present = attendanceByDate[dateKey]?.[member.uid]?.present === true;
-        if (present) presentRecords += 1;
-        return present ? count + 1 : count;
-      }, 0);
-      const attendancePercentage = dateKeys.length > 0
-        ? Math.round((presentDays / dateKeys.length) * 100)
-        : 0;
+  const rawMembers = members.map((member) => {
+    let weeklyFocusSeconds = 0;
+    const presentDays = dateKeys.reduce((count, dateKey) => {
+      const record = attendanceByDate[dateKey]?.[member.uid];
+      const present = record?.present === true;
+      if (present) presentRecords += 1;
+      if (record?.focusMinutes) weeklyFocusSeconds += record.focusMinutes * 60;
+      return present ? count + 1 : count;
+    }, 0);
+    const attendancePercentage = dateKeys.length > 0
+      ? Math.round((presentDays / dateKeys.length) * 100)
+      : 0;
 
-      return {
-        uid: member.uid,
-        displayName: member.displayName || member.name || "User",
-        email: member.email,
-        username: member.name,
-        presentDays,
-        totalDays: dateKeys.length,
-        attendancePercentage,
-        originalIndex,
-      };
-    })
-    .sort((a, b) => b.attendancePercentage - a.attendancePercentage || a.originalIndex - b.originalIndex)
-    .map(({ originalIndex, ...member }) => member);
+    return {
+      uid: member.uid,
+      displayName: member.displayName || member.name || "User",
+      email: member.email,
+      username: member.name,
+      presentDays,
+      totalDays: dateKeys.length,
+      attendancePercentage,
+      weeklyFocusSeconds,
+      currentStreak: (member as any).currentStreak || 0,
+      totalSessions: (member as any).totalSessions || 0,
+      joinedAtMs: (member as any).joinedAtMs || Number.MAX_SAFE_INTEGER,
+    };
+  });
+
+  const weeklyMembers = calculateRankings(rawMembers, "weeklyFocusSeconds") as WeeklyMember[];
 
   const weeklySummary = {
     presentRecords,

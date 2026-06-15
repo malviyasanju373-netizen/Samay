@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, RefreshControl, ScrollView,
@@ -10,7 +10,7 @@ import { LeaderboardEntry } from "@/services/leaderboard";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { useTheme } from "@/context/ThemeContext";
 import { getSecondaryIdentifier } from "@/utils/memberIdentification";
-import { formatStudyTime } from "@/utils/timeFormat";
+import { getRankLabel, formatDuration, getUserRank } from "@/utils/leaderboardUtils";
 
 function timeAgo(ms: number): string {
   const m = Math.round((Date.now() - ms) / 60000);
@@ -25,7 +25,10 @@ export default function LeaderboardScreen({ navigation }: any) {
   const { entries, loading, refreshing, fetchedAt, error, refetch } = useLeaderboard();
   const s = createStyles(theme);
 
-  console.log("[LeaderboardScreen] Rendering with entries:", entries.length, "loading:", loading, "entries:", entries);
+  const currentUserRank = useMemo(() => {
+    if (!currentUid || !entries.length) return null;
+    return getUserRank(entries, currentUid);
+  }, [entries, currentUid]);
 
   if (loading) {
     return (
@@ -60,6 +63,12 @@ export default function LeaderboardScreen({ navigation }: any) {
         <Text style={s.cacheLabel}>Updated {timeAgo(fetchedAt)}</Text>
       )}
 
+      {currentUserRank !== null && (
+         <View style={s.currentUserBanner}>
+           <Text style={s.currentUserBannerText}>Your Current Rank: {getRankLabel(currentUserRank)}</Text>
+         </View>
+      )}
+
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refetch} tintColor={theme.colors.primary} />}
         showsVerticalScrollIndicator={false}
@@ -70,18 +79,19 @@ export default function LeaderboardScreen({ navigation }: any) {
           <View style={s.listSection}>
             {entries.map((entry, index) => {
               const displayName = entry.displayName || "Anonymous";
-                            const seconds = entry.totalFocusSeconds ?? ((entry.totalFocusMinutes || 0) * 60);
+              const seconds = entry.totalFocusSeconds ?? ((entry.totalFocusMinutes || 0) * 60);
               const rank = entry.rank || index + 1;
               const secondaryId = getSecondaryIdentifier(entry.uid);
+              const isMe = entry.uid === currentUid;
               
               return (
-                <View key={entry.uid} style={s.listRow}>
-                  <Text style={s.listRank}>#{rank}</Text>
+                <View key={entry.uid} style={[s.listRow, isMe && s.listRowHighlight]}>
+                  <Text style={s.listRank}>{getRankLabel(rank)}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={s.listName}>{displayName}</Text>
                     <Text style={s.secondaryId}>{secondaryId}</Text>
                   </View>
-                  <Text style={s.listTime}>{formatStudyTime(seconds)}</Text>
+                  <Text style={s.listTime}>{formatDuration(seconds)}</Text>
                 </View>
               );
             })}
@@ -108,13 +118,15 @@ function createStyles(theme: any) {
     headerTitle: { fontSize: 17, fontWeight: "700", color: theme.colors.text },
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
     cacheLabel: { fontSize: 11, color: theme.colors.textTertiary, textAlign: "center", paddingTop: 6, paddingBottom: 2 },
+    currentUserBanner: { paddingVertical: 8, paddingHorizontal: 16, backgroundColor: theme.colors.primary + "15", borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+    currentUserBannerText: { fontSize: 13, fontWeight: "600", color: theme.colors.primary, textAlign: "center" },
     emptyState: { paddingHorizontal: 24, paddingVertical: 60, alignItems: "center", justifyContent: "center" },
     emptyStateTitle: { fontSize: 16, fontWeight: "700", color: theme.colors.text, marginTop: 16, marginBottom: 8 },
     emptyStateText: { fontSize: 14, color: theme.colors.textSecondary, textAlign: "center" },
     listSection: { paddingHorizontal: 12, paddingVertical: 12, gap: 8 },
     listRow: { flexDirection: "row", alignItems: "center", backgroundColor: theme.colors.surface, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, borderWidth: 1, borderColor: theme.colors.border, gap: 12 },
-    listRowHighlight: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + "08" },
-    listRank: { fontSize: 14, fontWeight: "700", color: theme.colors.text, width: 30 },
+    listRowHighlight: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + "15" },
+    listRank: { fontSize: 14, fontWeight: "700", color: theme.colors.text, width: 35 },
     listName: { fontSize: 14, fontWeight: "600", color: theme.colors.text, flex: 1 },
     secondaryId: { fontSize: 12, color: theme.colors.textTertiary, marginTop: 2 },
     listTime: { fontSize: 14, fontWeight: "700", color: theme.colors.primary },

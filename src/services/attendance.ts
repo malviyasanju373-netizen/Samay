@@ -74,6 +74,11 @@ export async function updateAttendance(
 
   try {
     const db = requireFirestore();
+    const attendanceDateRef = db
+      .collection("groups")
+      .doc(groupId)
+      .collection("attendance")
+      .doc(dateKey);
     const memberAttendanceRef = db
       .collection("groups")
       .doc(groupId)
@@ -84,6 +89,14 @@ export async function updateAttendance(
 
     const safeTotalMinutes = typeof totalMinutes === "number" && !isNaN(totalMinutes) ? totalMinutes : 0;
     
+    await attendanceDateRef.set(
+      {
+        dateKey,
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
     // Use set with merge to accumulate minutes and update status
     await memberAttendanceRef.set(
       {
