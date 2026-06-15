@@ -13,6 +13,7 @@ web-build/
 *.env.local
 .env.example
 google-services.json
+!android/app/google-services.json
 GoogleService-Info.plist
 # EAS Build needs android/ and ios/ directories - only ignore build outputs
 android/app/build/
