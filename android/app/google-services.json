@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "54974357437-j0v6ntb0l1mia3tbu0gnqmpe5vf7g1p3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.samay.app",
+            "certificate_hash": "0c57b19d7e4442d5de05a9c09a6d192ea5d17eb5"
+          }
+        },
+        {
           "client_id": "54974357437-65bmm8pjvenchausg26siseo8mnn0jfj.apps.googleusercontent.com",
           "client_type": 3
         }
