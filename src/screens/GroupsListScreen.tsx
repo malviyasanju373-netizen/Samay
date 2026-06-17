@@ -40,10 +40,11 @@ export default function GroupsListScreen({ navigation }: any) {
   const s = useMemo(() => createStyles(theme), [theme]);
 
   const animatedValue = useRef(new Animated.Value(0)).current;
-  const animatedWidth = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const mountedRef = useRef(true);
   const tabLayouts = useRef<Record<string, { x: number; width: number }>>({});
+  
+  const INDICATOR_WIDTH = 32;
 
   const activeSortKey = useMemo(() => {
     return TAB_CONFIG.find((item) => item.label === activeTab)?.sortKey || "createdAt";
@@ -53,6 +54,7 @@ export default function GroupsListScreen({ navigation }: any) {
     mountedRef.current = true;
     setLoading(true);
     setError(null);
+
 
     const unsubscribe = subscribeToGroupsList(activeSortKey, (fetchedGroups) => {
       if (!mountedRef.current) return;
@@ -76,10 +78,9 @@ export default function GroupsListScreen({ navigation }: any) {
       mountedRef.current = false;
       unsubscribe();
       animatedValue.stopAnimation();
-      animatedWidth.stopAnimation();
       contentOpacity.stopAnimation();
     };
-  }, [activeSortKey, animatedValue, animatedWidth, contentOpacity]);
+  }, [activeSortKey, animatedValue, contentOpacity]);
 
   const handleTabLayout = useCallback((tab: string, event: LayoutChangeEvent) => {
     if (!event?.nativeEvent?.layout) return;
@@ -87,8 +88,14 @@ export default function GroupsListScreen({ navigation }: any) {
     const current = tabLayouts.current[tab];
     if (current?.x === x && current.width === width) return;
     tabLayouts.current[tab] = { x, width };
+    
+    // Immediately set indicator position without animation if it's the active tab
+    if (tab === activeTab) {
+      animatedValue.setValue(x + (width - INDICATOR_WIDTH) / 2);
+    }
+    
     setTabLayoutVersion((version) => version + 1);
-  }, []);
+  }, [activeTab, animatedValue]);
 
   const safeNavigate = useCallback((screen: string, params?: Record<string, unknown>) => {
     navigation?.navigate(screen, params);
@@ -122,21 +129,14 @@ export default function GroupsListScreen({ navigation }: any) {
       
       const layout = tabLayouts.current[tab];
       if (layout) {
-        Animated.parallel([
-          Animated.spring(animatedValue, {
-            toValue: layout.x,
-            damping: 15,
-            stiffness: 150,
-            useNativeDriver: false,
-          }),
-          Animated.spring(animatedWidth, {
-            toValue: layout.width,
-            damping: 15,
-            stiffness: 150,
-            useNativeDriver: false,
-          }),
-        ]).start();
+        Animated.spring(animatedValue, {
+          toValue: layout.x + (layout.width - INDICATOR_WIDTH) / 2,
+          damping: 15,
+          stiffness: 150,
+          useNativeDriver: false,
+        }).start();
       }
+
 
       Animated.timing(contentOpacity, {
         toValue: 1,
@@ -144,7 +144,7 @@ export default function GroupsListScreen({ navigation }: any) {
         useNativeDriver: true,
       }).start();
     });
-  }, [activeTab, animatedValue, animatedWidth, contentOpacity]);
+  }, [activeTab, animatedValue, contentOpacity, safeNavigate]);
 
   if (loading) {
     return (
@@ -177,6 +177,7 @@ export default function GroupsListScreen({ navigation }: any) {
     );
   }
 
+
   return (
     <SafeAreaView style={s.container} edges={["top", "left", "right"]}>
       <View style={s.header}>
@@ -187,35 +188,36 @@ export default function GroupsListScreen({ navigation }: any) {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.categoryTabsContent}
+          contentContainerStyle={s.scrollViewContent}
         >
-          {TAB_CONFIG.map(({ label }) => (
-            <TouchableOpacity
-              key={label}
-              onLayout={(event) => handleTabLayout(label, event)}
-              onPress={() => handleTabPress(label)}
-              style={s.categoryTab}
-              activeOpacity={0.7}
-            >
-              <Text style={[s.categoryTabText, activeTab === label && s.activeCategoryTabText]}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <Animated.View 
-            style={[
-              s.tabIndicator, 
-              { 
-                left: animatedValue, 
-                width: animatedWidth,
-                // transform removed for Fabric compatibility
-              }
-            ]} 
-          />
+          <View style={s.categoryTabsContent}>
+            {TAB_CONFIG.map(({ label }) => (
+              <TouchableOpacity
+                key={label}
+                onLayout={(event) => handleTabLayout(label, event)}
+                onPress={() => handleTabPress(label)}
+                style={s.categoryTab}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.categoryTabText, activeTab === label && s.activeCategoryTabText]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <Animated.View 
+              style={[
+                s.tabIndicator, 
+                { 
+                  left: animatedValue, 
+                  width: INDICATOR_WIDTH,
+                }
+              ]} 
+            />
+          </View>
         </ScrollView>
       </View>
 
-      <View style={s.content}> 
+      <Animated.View style={[s.content, { opacity: contentOpacity }]}> 
         <ScrollView
           style={s.content}
           contentContainerStyle={s.groupsList}
@@ -242,12 +244,12 @@ export default function GroupsListScreen({ navigation }: any) {
             )) : null
           )}
         </ScrollView>
-      </View>
+      </Animated.View>
 
-      <View style={{ position: "absolute", bottom: 30, right: 20 }}>
+      <View style={s.floatingCreateButtonContainer}>
         <TouchableOpacity
           onPress={() => safeNavigate("CreateGroup")}
-          style={{ backgroundColor: theme.colors.primary, borderRadius: 28, width: 56, height: 56, justifyContent: "center", alignItems: "center", elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6 }}
+          style={s.floatingCreateButton}
           activeOpacity={1}
         >
           <Ionicons name="add" size={32} color="#FFFFFF" />
@@ -285,12 +287,15 @@ const GroupCard = memo(function GroupCard({
       <View style={styles.groupStats}>
           <View style={styles.groupStatItem}>
             <Ionicons name="checkmark-circle" size={14} color="#22C55E" />
-            <Text style={styles.groupStatText}>{group.attendancePercentage ?? 0}%</Text>
+            <Text style={styles.groupStatText}>{group.attendancePercentage || 0}%</Text>
           </View>
           <View style={styles.groupStatItem}>
             <Ionicons name="time" size={14} color="#FBBF24" />
 
-            <Text style={styles.groupStatText}>{formatStudyTime((group.totalStudyTime ?? 0) * 3600)}</Text>
+            <Text style={styles.groupStatText}>{formatStudyTime(
+              group.totalStudyTimeSeconds ??
+              ((group.totalStudyTime ?? 0) * 3600)
+            )}</Text>
           </View>
       </View>
     </TouchableOpacity>
@@ -314,17 +319,16 @@ function createStyles(theme: any) {
     memberCount: { fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.text },
     groupDesc: { fontSize: typography.fontSize.base, color: colors.textSecondary },
     categoryTabsContainer: { maxHeight: 60, backgroundColor: colors.background },
-    categoryTabsContent: { paddingHorizontal: spacing.xl, alignItems: 'center', gap: spacing.sm },
+    scrollViewContent: { flexGrow: 1 },
+    categoryTabsContent: { paddingHorizontal: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     categoryTab: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
     categoryTabText: { color: colors.textSecondary, fontWeight: typography.fontWeight.semibold, fontSize: typography.fontSize.base },
     activeCategoryTabText: { color: colors.primary },
     tabIndicator: { height: 3, backgroundColor: colors.primary, position: "absolute", bottom: 0, borderRadius: 1.5 },
-    floatingCreateButton: { position: "absolute", bottom: 30, right: spacing.xl, backgroundColor: colors.primary, borderRadius: radius.full, width: 56, height: 56, justifyContent: "center", alignItems: "center", elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6 },
+    floatingCreateButtonContainer: { position: "absolute", bottom: 30, right: 20 },
+    floatingCreateButton: { backgroundColor: colors.primary, borderRadius: 28, width: 56, height: 56, justifyContent: "center", alignItems: "center", elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6 },
     groupStats: { flexDirection: "row", gap: spacing.md, marginTop: spacing.xs },
     groupStatItem: { flexDirection: "row", alignItems: "center", gap: 4 },
     groupStatText: { color: colors.text, fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.medium },
   });
 }
-
-
-
