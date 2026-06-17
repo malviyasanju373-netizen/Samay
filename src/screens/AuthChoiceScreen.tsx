@@ -194,7 +194,33 @@ export default function AuthChoiceScreen() {
         console.log("[GoogleSignIn] ✓ Credential created, signing in to Firebase...");
       }
       
-      const result = await auth().signInWithCredential(credential);
+      let result;
+      try {
+        if (__DEV__) {
+          console.log("[GoogleSignIn:signInWithCredential] Calling auth().signInWithCredential()...", {
+            idTokenExists: !!idToken,
+            idTokenLength: idToken?.length ?? 0,
+            firebaseProjectId: auth().app.options?.projectId ?? "unknown",
+            webClientId: googleWebClientId ? googleWebClientId.substring(0, 40) + "..." : "NOT SET",
+          });
+        }
+        
+        result = await auth().signInWithCredential(credential);
+      } catch (error: any) {
+        if (__DEV__) {
+          console.group("[GoogleSignIn:signInWithCredential] ❌ FAILED");
+          console.error("error.code:", error?.code ?? "undefined");
+          console.error("error.message:", error?.message ?? "undefined");
+          console.error("full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+          console.error("Firebase project ID:", auth().app.options?.projectId ?? "unknown");
+          console.error("webClientId being used:", googleWebClientId ?? "NOT SET");
+          console.error("idToken exists:", !!idToken);
+          console.error("idToken length:", idToken?.length ?? 0);
+          console.groupEnd();
+        }
+        throw error;
+      }
+
       const user = result.user;
       const additionalUserInfo = (result as FirebaseAuthTypes.UserCredential & {
         additionalUserInfo?: { isNewUser?: boolean };

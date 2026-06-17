@@ -732,11 +732,21 @@ export function subscribeToGroupsList(
   onError?: (error: Error) => void
 ): () => void {
   try {
+    // NOTE: We intentionally do NOT use Firestore `.orderBy(sortKey, "desc")` here.
+    // Firestore orderBy:
+    //   1. silently EXCLUDES documents missing the sort field (attendancePercentage /
+    //      totalStudyTime are optional and may be absent on older/stale group docs),
+    //   2. provides no deterministic tie-breaker for equal values.
+    // Both produced an incorrect / unstable ranking in GroupsListScreen.
+    // Instead we fetch all groups and sort client-side after normalization
+    // (normalizeGroup coalesces missing aggregates to 0), with a stable tie-breaker.
     return requireFirestore()
       .collection("groups")
-      .orderBy(sortKey, "desc")
       .onSnapshot(
-        (snap) => onUpdate(snap.docs.map((d) => normalizeGroup(d.id, d.data()))),
+        (snap) => {
+          const groups = snap.docs.map((d) => normalizeGroup(d.id, d.data()));
+          onUpdate(sortGroupsList(groups, sortKey));
+        },
         (err) => onError?.(err)
       );
   } catch (err) {
@@ -744,6 +754,46 @@ export function subscribeToGroupsList(
     return () => {};
   }
 }
+
+/**
+ * Deterministic client-side sort for the groups list.
+ * - Numeric aggregate keys (attendancePercentage / totalStudyTime) sort descending,
+ *   treating null/undefined as 0 so stale docs are never dropped or mis-ranked.
+ * - "createdAt" sorts newest-first.
+ * - Ties are broken by createdAt (newest first), then by name/id for full stability.
+ */
+function sortGroupsList(groups: Group[], sortKey: string): Group[] {
+  return [...groups].sort((a, b) => {
+    if (sortKey === 'attendancePercentage') {
+      const aAtt = Number(a.attendancePercentage ?? 0);
+      const bAtt = Number(b.attendancePercentage ?? 0);
+      if (bAtt !== aAtt) return bAtt - aAtt;
+
+      const aTime = Number(a.totalStudyTime ?? 0);
+      const bTime = Number(b.totalStudyTime ?? 0);
+      if (bTime !== aTime) return bTime - aTime;
+
+      const ts = timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt);
+      if (ts !== 0) return ts;
+      return String(a.id).localeCompare(String(b.id));
+    }
+
+    if (sortKey === 'totalStudyTime') {
+      const aTime = Number(a.totalStudyTime ?? 0);
+      const bTime = Number(b.totalStudyTime ?? 0);
+      if (bTime !== aTime) return bTime - aTime;
+      
+      const ts = timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt);
+      if (ts !== 0) return ts;
+      return String(a.id).localeCompare(String(b.id));
+    }
+
+    const ts = timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt);
+    if (ts !== 0) return ts;
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
+
 
 export async function updateGroupMemberMinutes(groupId: string, uid: string, minutesToAdd: number, secondsToAdd: number): Promise<void> {
   console.log("[GROUP UPDATE] entered");
