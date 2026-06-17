@@ -40,7 +40,6 @@ export default function GroupsListScreen({ navigation }: any) {
   const s = useMemo(() => createStyles(theme), [theme]);
 
   const animatedValue = useRef(new Animated.Value(0)).current;
-  const contentOpacity = useRef(new Animated.Value(1)).current;
   const mountedRef = useRef(true);
   const tabLayouts = useRef<Record<string, { x: number; width: number }>>({});
   
@@ -54,7 +53,6 @@ export default function GroupsListScreen({ navigation }: any) {
     mountedRef.current = true;
     setLoading(true);
     setError(null);
-
 
     const unsubscribe = subscribeToGroupsList(activeSortKey, (fetchedGroups) => {
       if (!mountedRef.current) return;
@@ -78,9 +76,8 @@ export default function GroupsListScreen({ navigation }: any) {
       mountedRef.current = false;
       unsubscribe();
       animatedValue.stopAnimation();
-      contentOpacity.stopAnimation();
     };
-  }, [activeSortKey, animatedValue, contentOpacity]);
+  }, [activeSortKey, animatedValue]);
 
   const handleTabLayout = useCallback((tab: string, event: LayoutChangeEvent) => {
     if (!event?.nativeEvent?.layout) return;
@@ -119,32 +116,18 @@ export default function GroupsListScreen({ navigation }: any) {
 
     if (activeTab === tab || !mountedRef.current) return;
 
-    Animated.timing(contentOpacity, {
-      toValue: 0,
-      duration: 150,
-      useNativeDriver: true,
-    }).start(() => {
-      if (!mountedRef.current) return;
-      setActiveTab(tab);
-      
-      const layout = tabLayouts.current[tab];
-      if (layout) {
-        Animated.spring(animatedValue, {
-          toValue: layout.x + (layout.width - INDICATOR_WIDTH) / 2,
-          damping: 15,
-          stiffness: 150,
-          useNativeDriver: false,
-        }).start();
-      }
-
-
-      Animated.timing(contentOpacity, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
+    setActiveTab(tab);
+    
+    const layout = tabLayouts.current[tab];
+    if (layout) {
+      Animated.spring(animatedValue, {
+        toValue: layout.x + (layout.width - INDICATOR_WIDTH) / 2,
+        damping: 15,
+        stiffness: 150,
+        useNativeDriver: false,
       }).start();
-    });
-  }, [activeTab, animatedValue, contentOpacity, safeNavigate]);
+    }
+  }, [activeTab, animatedValue, safeNavigate]);
 
   if (loading) {
     return (
@@ -176,7 +159,6 @@ export default function GroupsListScreen({ navigation }: any) {
       </SafeAreaView>
     );
   }
-
 
   return (
     <SafeAreaView style={s.container} edges={["top", "left", "right"]}>
@@ -217,7 +199,7 @@ export default function GroupsListScreen({ navigation }: any) {
         </ScrollView>
       </View>
 
-      <Animated.View style={[s.content, { opacity: contentOpacity }]}> 
+      <View style={s.content}> 
         <ScrollView
           style={s.content}
           contentContainerStyle={s.groupsList}
@@ -244,7 +226,7 @@ export default function GroupsListScreen({ navigation }: any) {
             )) : null
           )}
         </ScrollView>
-      </Animated.View>
+      </View>
 
       <View style={s.floatingCreateButtonContainer}>
         <TouchableOpacity
