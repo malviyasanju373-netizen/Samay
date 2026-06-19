@@ -3,15 +3,18 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { auth } from '@/firebase';
 import { useGroupChat } from '@/hooks/useGroupChat';
 import { useTheme } from '@/context/ThemeContext';
 import { timestampToMillis } from '@/services/groups';
 
+const INPUT_BAR_HEIGHT = 56;
+
 export default function GroupChatScreen({ route, navigation }: any) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const groupId = typeof route?.params?.groupId === 'string' ? route.params.groupId : '';
   const groupName = route?.params?.groupName || 'Group Chat';
   const currentUid = auth()?.currentUser?.uid ?? null;
@@ -20,7 +23,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  const s = useMemo(() => createStyles(theme), [theme]);
+  const s = useMemo(() => createStyles(theme, insets), [theme, insets]);
 
   const handleSend = useCallback(async () => {
     if (!inputText.trim() || !groupId || !currentUid) return;
@@ -62,7 +65,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.container}>
+      <SafeAreaView style={s.container} edges={['top']}>
         <View style={s.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
             <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
@@ -85,65 +88,69 @@ export default function GroupChatScreen({ route, navigation }: any) {
         <View style={{ width: 44 }} />
       </View>
 
-      <FlatList
-        ref={flatListRef as any}
-        data={messages}
-        keyExtractor={(item: any) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={s.messagesList}
-        onContentSizeChange={() => {
-          if (messages.length > 0) {
-            try {
-              flatListRef.current?.scrollToIndex({
-                index: messages.length - 1,
-                animated: false
-              });
-            } catch {}
-          }
-        }}
-        ListEmptyComponent={() => (
-          <View style={s.emptyContainer}>
-            <Text style={s.emptyText}>No messages yet. Start the conversation!</Text>
-          </View>
-        )}
-      />
-
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={s.inputContainer}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        style={s.keyboardAvoid}
       >
-        <TextInput
-          style={[s.textInput, { backgroundColor: theme.colors.surface, color: theme.colors.text }]}
-          placeholder="Type a message..."
-          placeholderTextColor={theme.colors.textTertiary}
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-          maxLength={500}
-        />
-        <TouchableOpacity
-          style={[s.sendBtn, (!inputText.trim() || sending) && s.sendBtnDisabled]}
-          onPress={handleSend}
-          disabled={!inputText.trim() || sending}
-        >
-          {sending ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Ionicons name="send" size={20} color="#fff" />
+        <FlatList
+          ref={flatListRef as any}
+          data={messages}
+          keyExtractor={(item: any) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={s.messagesList}
+          onContentSizeChange={() => {
+            if (messages.length > 0) {
+              try {
+                flatListRef.current?.scrollToIndex({
+                  index: messages.length - 1,
+                  animated: false
+                });
+              } catch {}
+            }
+          }}
+          ListEmptyComponent={() => (
+            <View style={s.emptyContainer}>
+              <Text style={s.emptyText}>No messages yet. Start the conversation!</Text>
+            </View>
           )}
-        </TouchableOpacity>
+        />
+
+        <View style={s.inputContainer}>
+          <TextInput
+            style={[s.textInput, { backgroundColor: theme.colors.surface, color: theme.colors.text }]}
+            placeholder="Type a message..."
+            placeholderTextColor={theme.colors.textTertiary}
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            maxLength={500}
+          />
+          <TouchableOpacity
+            style={[s.sendBtn, (!inputText.trim() || sending) && s.sendBtnDisabled]}
+            onPress={handleSend}
+            disabled={!inputText.trim() || sending}
+          >
+            {sending ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="send" size={20} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
+const createStyles = (theme: any, insets: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
+  keyboardAvoid: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: theme.colors.card },
   backBtn: { width: 44, height: 44, justifyContent: 'center' },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: theme.colors.text, textAlign: 'center' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  messagesList: { padding: 16, paddingBottom: 80 },
+  messagesList: { padding: 16, paddingBottom: INPUT_BAR_HEIGHT + 16 },
   messageRow: { marginBottom: 12, maxWidth: '80%' },
   messageRowLeft: { alignSelf: 'flex-start' },
   messageRowRight: { alignSelf: 'flex-end' },
@@ -157,7 +164,14 @@ const createStyles = (theme: any) => StyleSheet.create({
   timeText: { fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
   timeTextOwn: { color: 'rgba(255,255,255,0.7)' },
   timeTextOther: { color: theme.colors.textTertiary },
-  inputContainer: { flexDirection: 'row', padding: 12, backgroundColor: theme.colors.background, alignItems: 'flex-end' },
+  inputContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 12 + insets.bottom,
+    backgroundColor: theme.colors.background,
+    alignItems: 'flex-end',
+  },
   textInput: { flex: 1, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, maxHeight: 100, fontSize: 16 },
   sendBtn: { marginLeft: 8, backgroundColor: theme.colors.primary, borderRadius: 20, width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   sendBtnDisabled: { opacity: 0.5 },
