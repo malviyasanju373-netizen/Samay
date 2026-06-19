@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { subscribeToMessages, sendMessage as sendMessageApi, ChatMessage } from '@/services/chat';
+import { subscribeToMessages, sendMessage as sendMessageApi, ChatMessage, ReplyTo } from '@/services/chat';
 
 interface UseGroupChatReturn {
   messages: ChatMessage[];
   loading: boolean;
   error: string | null;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, replyTo?: ReplyTo | null) => Promise<void>;
 }
 
 export function useGroupChat(groupId: string): UseGroupChatReturn {
@@ -46,10 +46,10 @@ export function useGroupChat(groupId: string): UseGroupChatReturn {
   }, [groupId]);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, replyTo?: ReplyTo | null) => {
       if (!groupId) return;
       try {
-        await sendMessageApi(groupId, text);
+        await sendMessageApi(groupId, text, replyTo);
       } catch (err: any) {
         setError(err?.message || 'Failed to send message');
       }

@@ -1,6 +1,13 @@
 import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import { auth } from '@/firebase';
 
+export interface ReplyTo {
+  messageId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+}
+
 export interface ChatMessage {
   id: string;
   text: string;
@@ -8,11 +15,13 @@ export interface ChatMessage {
   senderName: string;
   senderPhotoURL?: string | null;
   createdAt: FirebaseFirestoreTypes.Timestamp;
+  replyTo?: ReplyTo | null;
 }
 
 export async function sendMessage(
   groupId: string,
-  text: string
+  text: string,
+  replyTo?: ReplyTo | null
 ): Promise<void> {
   const currentUser = auth()?.currentUser;
   if (!currentUser?.uid) {
@@ -31,13 +40,24 @@ export async function sendMessage(
     .collection('messages')
     .doc();
 
-  await messageRef.set({
+  const data: Record<string, any> = {
     text: trimmedText,
     senderId: currentUser.uid,
     senderName: currentUser.displayName || 'User',
     senderPhotoURL: currentUser.photoURL || null,
     createdAt: firestore.FieldValue.serverTimestamp(),
-  });
+  };
+
+  if (replyTo) {
+    data.replyTo = {
+      messageId: replyTo.messageId,
+      senderId: replyTo.senderId,
+      senderName: replyTo.senderName,
+      text: replyTo.text,
+    };
+  }
+
+  await messageRef.set(data);
 }
 
 export function subscribeToMessages(
