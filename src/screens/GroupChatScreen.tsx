@@ -8,7 +8,7 @@ import Ionicons from '@react-native-vector-icons/ionicons';
 import { auth } from '@/firebase';
 import { useGroupChat } from '@/hooks/useGroupChat';
 import { useTheme } from '@/context/ThemeContext';
-import { timestampToMillis } from '@/services/groups';
+import { formatMessageTimestamp } from '@/utils/timeFormat';
 
 const INPUT_BAR_HEIGHT = 56;
 
@@ -36,14 +36,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
   }, [inputText, groupId, currentUid, sendMessage]);
 
   const formatTime = useCallback((timestamp: any) => {
-    try {
-      const date = timestampToMillis(timestamp);
-      return new Date(date).toLocaleTimeString([], {
-        hour: '2-digit', minute: '2-digit'
-      });
-    } catch {
-      return '';
-    }
+    return formatMessageTimestamp(timestamp);
   }, []);
 
   const renderItem = useCallback(({ item }: any) => {
