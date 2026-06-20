@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   RefreshControl, ActivityIndicator,
@@ -10,6 +10,7 @@ import { auth, firestore } from "@/firebase";
 import { getTodayMinutes, getRecentSessions } from "@/services/sessions";
 import { FocusSession, CATEGORIES } from "@/types/session";
 import { useTodos } from "@/hooks/useTodos";
+import { toggleTodo } from "@/services/todos";
 import { Todo } from "@/types/todo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatStudyTime } from "@/utils/timeFormat";
@@ -40,7 +41,7 @@ export default function HomeScreen({ navigation }: any) {
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { todos: allTodos } = useTodos();
-  const todayTodos = allTodos.filter((t) => !t.completed).slice(0, 3);
+  const todayTodos = useMemo(() => allTodos.filter((t) => !t.completed).slice(0, 3), [allTodos]);
 
   const load = useCallback(async () => {
     if (!user) {
@@ -73,6 +74,24 @@ export default function HomeScreen({ navigation }: any) {
     });
     load().finally(() => setLoading(false));
   }, [load]);
+
+  const handleToggle = useCallback((id: string, completed: boolean) => {
+    toggleTodo(id, completed).catch((err: any) => {
+      console.error("Could not toggle todo:", err?.message);
+    });
+  }, []);
+
+  const handleStartFocus = useCallback((todo: Todo) => {
+    navigation.navigate("Tabs", {
+      screen: "Timer",
+      params: {
+        todoId: todo.id,
+        subjectId: todo.subjectId,
+        plannedDurationMinutes: todo.plannedDurationMinutes,
+        title: todo.title,
+      },
+    });
+  }, [navigation]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -193,15 +212,31 @@ export default function HomeScreen({ navigation }: any) {
         {todayTodos.length > 0 ? (
           todayTodos.map((todo) => (
             <View key={todo.id} style={s.todoRow}>
-              <Ionicons
-                name={todo.completed ? "checkbox" : "square-outline"}
-                size={20}
-                color={todo.completed ? theme.colors.primary : theme.colors.textTertiary}
-              />
-              <Text style={s.todoTitle} numberOfLines={1}>{todo.title}</Text>
-              {todo.plannedDurationMinutes > 0 && (
-                <Text style={s.todoDuration}>{todo.plannedDurationMinutes}m</Text>
-              )}
+              <TouchableOpacity
+                onPress={() => handleToggle(todo.id, !todo.completed)}
+                activeOpacity={0.7}
+                style={s.checkboxTouch}
+              >
+                <Ionicons
+                  name={todo.completed ? "checkbox" : "square-outline"}
+                  size={20}
+                  color={todo.completed ? theme.colors.primary : theme.colors.textTertiary}
+                />
+              </TouchableOpacity>
+              <View style={s.todoContent}>
+                <Text style={s.todoTitle} numberOfLines={1}>{todo.title}</Text>
+                {todo.plannedDurationMinutes > 0 && (
+                  <Text style={s.todoDuration}>{todo.plannedDurationMinutes}m</Text>
+                )}
+              </View>
+              <TouchableOpacity
+                onPress={() => handleStartFocus(todo)}
+                style={[s.startFocusBadge, { backgroundColor: theme.colors.primary + "15" }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="play" size={14} color={theme.colors.primary} />
+                <Text style={[s.startFocusText, { color: theme.colors.primary }]}>Start Focus</Text>
+              </TouchableOpacity>
             </View>
           ))
         ) : (
@@ -249,8 +284,12 @@ function createStyles(theme: any) {
     sessionDate: { fontSize: 12, color: theme.colors.textTertiary },
     sessionDuration: { fontSize: 14, fontWeight: "700", color: theme.colors.textSecondary },
     todoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider },
-    todoTitle: { flex: 1, fontSize: 14, fontWeight: "600", color: theme.colors.text },
+    checkboxTouch: { padding: 4 },
+    todoContent: { flex: 1, justifyContent: "center", gap: 2 },
+    todoTitle: { fontSize: 14, fontWeight: "600", color: theme.colors.text },
     todoDuration: { fontSize: 12, fontWeight: "700", color: theme.colors.textSecondary },
+    startFocusBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
+    startFocusText: { fontSize: 12, fontWeight: "700" },
     emptyTodos: { backgroundColor: theme.colors.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, padding: 16, alignItems: "center" },
     emptyTodosText: { fontSize: 13, color: theme.colors.textTertiary, fontWeight: "500" },
   });
