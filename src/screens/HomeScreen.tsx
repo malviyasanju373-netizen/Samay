@@ -9,6 +9,8 @@ import { useTheme } from "@/context/ThemeContext";
 import { auth, firestore } from "@/firebase";
 import { getTodayMinutes, getRecentSessions } from "@/services/sessions";
 import { FocusSession, CATEGORIES } from "@/types/session";
+import { useTodos } from "@/hooks/useTodos";
+import { Todo } from "@/types/todo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatStudyTime } from "@/utils/timeFormat";
 
@@ -37,6 +39,8 @@ export default function HomeScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { todos: allTodos } = useTodos();
+  const todayTodos = allTodos.filter((t) => !t.completed).slice(0, 3);
 
   const load = useCallback(async () => {
     if (!user) {
@@ -179,6 +183,33 @@ export default function HomeScreen({ navigation }: any) {
           </>
         )}
 
+        {/* Today's Todos */}
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionTitle}>Today's Todos</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("TodoScreen")} activeOpacity={0.8}>
+            <Text style={s.seeAll}>See All →</Text>
+          </TouchableOpacity>
+        </View>
+        {todayTodos.length > 0 ? (
+          todayTodos.map((todo) => (
+            <View key={todo.id} style={s.todoRow}>
+              <Ionicons
+                name={todo.completed ? "checkbox" : "square-outline"}
+                size={20}
+                color={todo.completed ? theme.colors.primary : theme.colors.textTertiary}
+              />
+              <Text style={s.todoTitle} numberOfLines={1}>{todo.title}</Text>
+              {todo.plannedDurationMinutes > 0 && (
+                <Text style={s.todoDuration}>{todo.plannedDurationMinutes}m</Text>
+              )}
+            </View>
+          ))
+        ) : (
+          <View style={s.emptyTodos}>
+            <Text style={s.emptyTodosText}>No Todos Yet</Text>
+          </View>
+        )}
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -217,5 +248,10 @@ function createStyles(theme: any) {
     sessionTitle: { fontSize: 14, fontWeight: "600", color: theme.colors.text },
     sessionDate: { fontSize: 12, color: theme.colors.textTertiary },
     sessionDuration: { fontSize: 14, fontWeight: "700", color: theme.colors.textSecondary },
+    todoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider },
+    todoTitle: { flex: 1, fontSize: 14, fontWeight: "600", color: theme.colors.text },
+    todoDuration: { fontSize: 12, fontWeight: "700", color: theme.colors.textSecondary },
+    emptyTodos: { backgroundColor: theme.colors.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, padding: 16, alignItems: "center" },
+    emptyTodosText: { fontSize: 13, color: theme.colors.textTertiary, fontWeight: "500" },
   });
 }

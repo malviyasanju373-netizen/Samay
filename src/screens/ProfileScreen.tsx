@@ -12,6 +12,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import {
   changeUsername, cooldownDaysRemaining, updateDisplayName, updateGoal,
 } from "@/services/userProfile";
+import { testCreateTodo } from "@/services/todos";
 import AppDialog, { AppDialogButton } from "@/components/AppDialog";
 import { formatStudyTime } from "@/utils/timeFormat";
 
@@ -126,6 +127,15 @@ export default function ProfileScreen({ navigation }: any) {
       await reloadProfile();
     } catch (err: any) { showDialog("Error", err.message); }
     setGoalLoading(false);
+  };
+
+  const handleCreateTestTodo = async () => {
+    try {
+      await testCreateTodo();
+      showDialog("Success", "Todo Created");
+    } catch (err: any) {
+      showDialog("Error", err?.message ?? "Failed to create test todo.");
+    }
   };
 
   const handleSignOut = () => {
@@ -257,6 +267,16 @@ export default function ProfileScreen({ navigation }: any) {
 
           {/* Actions */}
           <View style={s.section}>
+            <TouchableOpacity style={s.actionRow} onPress={handleCreateTestTodo} activeOpacity={0.8}>
+              <Ionicons name="create-outline" size={18} color={theme.colors.textSecondary} />
+              <Text style={s.actionText}>Create Test Todo</Text>
+            </TouchableOpacity>
+            <View style={s.divider} />
+            <TouchableOpacity style={s.actionRow} onPress={() => navigation.navigate('TodoScreen')} activeOpacity={0.8}>
+              <Ionicons name="list-outline" size={18} color={theme.colors.textSecondary} />
+              <Text style={s.actionText}>Open Todos</Text>
+            </TouchableOpacity>
+            <View style={s.divider} />
             <TouchableOpacity style={s.actionRow} onPress={() => navigation.navigate("Account")} activeOpacity={0.8}>
               <Ionicons name="settings-outline" size={18} color={theme.colors.textSecondary} />
               <Text style={s.actionText}>Account Settings</Text>

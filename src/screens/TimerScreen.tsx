@@ -9,6 +9,8 @@ import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/context/ThemeContext";
 import { useFocusTimer } from "@/hooks/useFocusTimer";
 import { CATEGORIES } from "@/types/session";
+import { updateTodo } from "@/services/todos";
+import firestore from "@react-native-firebase/firestore";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -34,9 +36,15 @@ export default function TimerScreen({ route, navigation }: any) {
   console.log("[TIMER PARAMS]", JSON.stringify(route?.params));
   const routeParams = route?.params ?? {};
   const groupStudyId = routeParams.groupId ?? routeParams.params?.groupId;
+  const todoId = routeParams.todoId ?? null;
 
-  const [selectedCategoryId, setSelectedCategoryId] = useState(route?.params?.categoryId ?? "other");
-  const [selectedTarget, setSelectedTarget] = useState<number | null>(25);
+  const initialCategoryId = routeParams.subjectId ?? routeParams.categoryId ?? "other";
+  const initialTarget = routeParams.plannedDurationMinutes && routeParams.plannedDurationMinutes > 0
+    ? routeParams.plannedDurationMinutes
+    : 25;
+
+  const [selectedCategoryId, setSelectedCategoryId] = useState(initialCategoryId);
+  const [selectedTarget, setSelectedTarget] = useState<number | null>(initialTarget);
   const [showStartModal, setShowStartModal] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
   const [showCompletionModal, setShowCompletionModal] = useState(false);
@@ -123,6 +131,16 @@ export default function TimerScreen({ route, navigation }: any) {
 
   const handleDone = async () => {
     console.log("[TIMER RESET]");
+    if (todoId) {
+      try {
+        await updateTodo(todoId, {
+          completed: true,
+          completedAt: firestore.FieldValue.serverTimestamp() as any,
+        });
+      } catch (err) {
+        console.error("[TimerScreen] Failed to update todo on completion:", err);
+      }
+    }
     await reset();
     setSelectedCategoryId("other");
     setSelectedTarget(25);
