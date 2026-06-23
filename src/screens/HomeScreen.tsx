@@ -175,36 +175,9 @@ export default function HomeScreen({ navigation }: any) {
           ))}
         </ScrollView>
 
-        {/* Recent sessions */}
-        {recentSessions.length > 0 && (
-          <>
-            <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>Recent</Text>
-              <TouchableOpacity onPress={() => navigation.navigate("Sessions")} activeOpacity={0.8}>
-                <Text style={s.seeAll}>See all</Text>
-              </TouchableOpacity>
-            </View>
-            {recentSessions.map((session) => {
-              const cat = CATEGORIES.find((c) => c.id === session.categoryId) ?? CATEGORIES[CATEGORIES.length - 1];
-              return (
-                <View key={session.id} style={s.sessionRow}>
-                  <View style={[s.sessionIcon, { backgroundColor: cat.color + "18" }]}>
-                    <Ionicons name={cat.icon as any} size={18} color={cat.color} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.sessionTitle} numberOfLines={1}>{session.title || cat.label}</Text>
-                    <Text style={s.sessionDate}>{sessionDateLabel(session)}</Text>
-                  </View>
-                  <Text style={s.sessionDuration}>{formatStudyTime(session.durationSeconds ?? session.durationMinutes * 60)}</Text>
-                </View>
-              );
-            })}
-          </>
-        )}
-
-        {/* Today's Todos */}
+        {/* Today's Planner (Todos) */}
         <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>Today's Todos</Text>
+          <Text style={s.sectionTitle}>Today's Planner</Text>
           <TouchableOpacity onPress={() => navigation.navigate("TodoScreen")} activeOpacity={0.8}>
             <Text style={s.seeAll}>See All →</Text>
           </TouchableOpacity>
@@ -278,11 +251,6 @@ function createStyles(theme: any) {
     categoryScroll: { marginBottom: 20 },
     categoryChip: { backgroundColor: theme.colors.surface, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, alignItems: "center", gap: 6, borderWidth: 1.5, minWidth: 72 },
     categoryLabel: { fontSize: 11, fontWeight: "700" },
-    sessionRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider },
-    sessionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-    sessionTitle: { fontSize: 14, fontWeight: "600", color: theme.colors.text },
-    sessionDate: { fontSize: 12, color: theme.colors.textTertiary },
-    sessionDuration: { fontSize: 14, fontWeight: "700", color: theme.colors.textSecondary },
     todoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider },
     checkboxTouch: { padding: 4 },
     todoContent: { flex: 1, justifyContent: "center", gap: 2 },

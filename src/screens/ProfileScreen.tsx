@@ -13,6 +13,8 @@ import {
   changeUsername, cooldownDaysRemaining, updateDisplayName, updateGoal,
 } from "@/services/userProfile";
 import { testCreateTodo } from "@/services/todos";
+import { getRecentSessions } from "@/services/sessions";
+import { FocusSession, CATEGORIES } from "@/types/session";
 import AppDialog, { AppDialogButton } from "@/components/AppDialog";
 import { formatStudyTime } from "@/utils/timeFormat";
 
@@ -22,6 +24,17 @@ function formatMemberSince(value: any) {
   const date = typeof value?.toDate === "function" ? value.toDate() : value instanceof Date ? value : null;
   if (!date || isNaN(date.getTime())) return "Recently joined";
   return `Since ${date.toLocaleDateString("en-IN", { month: "short", year: "numeric" })}`;
+}
+
+function sessionDateLabel(session: FocusSession) {
+  const ts = typeof (session.startTime as any)?.toDate === "function"
+    ? (session.startTime as any).toDate()
+    : new Date();
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - ts.getTime()) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return ts.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
 type DialogState = { title: string; message: string; buttons?: AppDialogButton[] };
@@ -42,6 +55,8 @@ export default function ProfileScreen({ navigation }: any) {
   const [goalLoading, setGoalLoading] = useState(false);
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [recentSessions, setRecentSessions] = useState<FocusSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
 
   const showDialog = (title: string, message: string, buttons?: AppDialogButton[]) => setDialog({ title, message, buttons });
   const hideDialog = () => setDialog(null);
@@ -60,6 +75,14 @@ export default function ProfileScreen({ navigation }: any) {
         setTotalSeconds(secs);
       }
     }).catch(() => {});
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    setSessionsLoading(true);
+    getRecentSessions(user.uid, 5).then((sessions) => {
+      setRecentSessions(sessions);
+    }).catch(() => {}).finally(() => setSessionsLoading(false));
   }, [user]);
 
   const handlePickPhoto = async () => {
@@ -265,6 +288,42 @@ export default function ProfileScreen({ navigation }: any) {
             </View>
           </View>
 
+          {/* Study History */}
+          <View style={s.section}>
+            <View style={s.studyHistoryHeader}>
+              <Text style={s.sectionLabel}>STUDY HISTORY</Text>
+              <TouchableOpacity onPress={() => navigation.navigate("Sessions")} activeOpacity={0.8}>
+                <Text style={s.seeAllText}>See all</Text>
+              </TouchableOpacity>
+            </View>
+            {sessionsLoading ? (
+              <ActivityIndicator color={theme.colors.primary} size="small" style={{ paddingVertical: 12 }} />
+            ) : recentSessions.length > 0 ? (
+              recentSessions.map((session) => {
+                const cat = CATEGORIES.find((c) => c.id === session.categoryId) ?? CATEGORIES[CATEGORIES.length - 1];
+                return (
+                  <TouchableOpacity
+                    key={session.id}
+                    style={s.sessionRow}
+                    onPress={() => navigation.navigate("Sessions")}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[s.sessionIcon, { backgroundColor: cat.color + "18" }]}>
+                      <Ionicons name={cat.icon as any} size={18} color={cat.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.sessionTitle} numberOfLines={1}>{session.title || cat.label}</Text>
+                      <Text style={s.sessionDate}>{sessionDateLabel(session)}</Text>
+                    </View>
+                    <Text style={s.sessionDuration}>{formatStudyTime(session.durationSeconds ?? session.durationMinutes * 60)}</Text>
+                  </TouchableOpacity>
+                );
+              })
+            ) : (
+              <Text style={s.emptyHistoryText}>No sessions yet. Start a focus session to see your history.</Text>
+            )}
+          </View>
+
           {/* Actions */}
           <View style={s.section}>
             <TouchableOpacity style={s.actionRow} onPress={handleCreateTestTodo} activeOpacity={0.8}>
@@ -335,6 +394,14 @@ function createStyles(theme: any) {
     themeChipActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
     themeChipText: { fontSize: 12, fontWeight: "600", color: theme.colors.textSecondary },
     themeChipTextActive: { color: theme.colors.textInverse },
+    studyHistoryHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+    seeAllText: { fontSize: 13, color: theme.colors.primary, fontWeight: "600" },
+    sessionRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider },
+    sessionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    sessionTitle: { fontSize: 14, fontWeight: "600", color: theme.colors.text },
+    sessionDate: { fontSize: 12, color: theme.colors.textTertiary },
+    sessionDuration: { fontSize: 14, fontWeight: "700", color: theme.colors.textSecondary },
+    emptyHistoryText: { fontSize: 13, color: theme.colors.textTertiary, paddingVertical: 8, textAlign: "center" },
     actionRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 },
     actionText: { fontSize: 15, fontWeight: "500", color: theme.colors.text },
     divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: 12 },
