@@ -288,42 +288,6 @@ export default function ProfileScreen({ navigation }: any) {
             </View>
           </View>
 
-          {/* Study History */}
-          <View style={s.section}>
-            <View style={s.studyHistoryHeader}>
-              <Text style={s.sectionLabel}>STUDY HISTORY</Text>
-              <TouchableOpacity onPress={() => navigation.navigate("Sessions")} activeOpacity={0.8}>
-                <Text style={s.seeAllText}>See all</Text>
-              </TouchableOpacity>
-            </View>
-            {sessionsLoading ? (
-              <ActivityIndicator color={theme.colors.primary} size="small" style={{ paddingVertical: 12 }} />
-            ) : recentSessions.length > 0 ? (
-              recentSessions.map((session) => {
-                const cat = CATEGORIES.find((c) => c.id === session.categoryId) ?? CATEGORIES[CATEGORIES.length - 1];
-                return (
-                  <TouchableOpacity
-                    key={session.id}
-                    style={s.sessionRow}
-                    onPress={() => navigation.navigate("Sessions")}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[s.sessionIcon, { backgroundColor: cat.color + "18" }]}>
-                      <Ionicons name={cat.icon as any} size={18} color={cat.color} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.sessionTitle} numberOfLines={1}>{session.title || cat.label}</Text>
-                      <Text style={s.sessionDate}>{sessionDateLabel(session)}</Text>
-                    </View>
-                    <Text style={s.sessionDuration}>{formatStudyTime(session.durationSeconds ?? session.durationMinutes * 60)}</Text>
-                  </TouchableOpacity>
-                );
-              })
-            ) : (
-              <Text style={s.emptyHistoryText}>No sessions yet. Start a focus session to see your history.</Text>
-            )}
-          </View>
-
           {/* Actions */}
           <View style={s.section}>
             <TouchableOpacity style={s.actionRow} onPress={handleCreateTestTodo} activeOpacity={0.8}>

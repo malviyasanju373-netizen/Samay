@@ -6,6 +6,7 @@ import { useAuth } from "@/auth/useAuth";
 import AppNavigator from "@/navigation/AppNavigator";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { useOnlinePresence } from "@/hooks/useOnlinePresence";
+import { FocusTimerProvider } from "@/context/FocusTimerContext";
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -54,9 +55,11 @@ function AppContent() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <StatusBar barStyle={theme.isDark ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} />
-      <NavigationContainer>
-        <AppNavigator user={user} authLoading={loading} />
-      </NavigationContainer>
+      <FocusTimerProvider>
+        <NavigationContainer>
+          <AppNavigator user={user} authLoading={loading} />
+        </NavigationContainer>
+      </FocusTimerProvider>
     </View>
   );
 }

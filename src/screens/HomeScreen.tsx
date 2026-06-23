@@ -33,7 +33,7 @@ export default function HomeScreen({ navigation }: any) {
   const user = auth().currentUser;
   const s = createStyles(theme);
 
-    const [todaySeconds, setTodaySeconds] = useState(0);
+  const [todaySeconds, setTodaySeconds] = useState(0);
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [recentSessions, setRecentSessions] = useState<FocusSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +42,23 @@ export default function HomeScreen({ navigation }: any) {
   const [error, setError] = useState<string | null>(null);
   const { todos: allTodos } = useTodos();
   const todayTodos = useMemo(() => allTodos.filter((t) => !t.completed).slice(0, 3), [allTodos]);
+
+  // Planner summary computations
+  const activeCount = useMemo(() => todayTodos.length, [todayTodos]);
+  const completedCount = useMemo(() => allTodos.filter((t) => t.completed).length, [allTodos]);
+  const totalPlannedMinutes = useMemo(
+    () => todayTodos.reduce((sum, t) => sum + (t.plannedDurationMinutes || 0), 0),
+    [todayTodos],
+  );
+  const totalFocusedSeconds = useMemo(
+    () => todayTodos.reduce((sum, t) => sum + (t.actualFocusSeconds || 0), 0),
+    [todayTodos],
+  );
+  const totalPlannedSeconds = totalPlannedMinutes * 60;
+  const progressFraction = totalPlannedSeconds > 0
+    ? Math.min(totalFocusedSeconds / totalPlannedSeconds, 1)
+    : 0;
+  const totalTasks = activeCount + completedCount;
 
   const load = useCallback(async () => {
     if (!user) {
@@ -82,15 +99,7 @@ export default function HomeScreen({ navigation }: any) {
   }, []);
 
   const handleStartFocus = useCallback((todo: Todo) => {
-    navigation.navigate("Tabs", {
-      screen: "Timer",
-      params: {
-        todoId: todo.id,
-        subjectId: todo.subjectId,
-        plannedDurationMinutes: todo.plannedDurationMinutes,
-        title: todo.title,
-      },
-    });
+    navigation.navigate("TodoScreen", {});
   }, [navigation]);
 
   const onRefresh = async () => {
@@ -175,46 +184,115 @@ export default function HomeScreen({ navigation }: any) {
           ))}
         </ScrollView>
 
-        {/* Today's Planner (Todos) */}
+        {/* Today's Planner */}
         <View style={s.sectionHeader}>
           <Text style={s.sectionTitle}>Today's Planner</Text>
           <TouchableOpacity onPress={() => navigation.navigate("TodoScreen")} activeOpacity={0.8}>
             <Text style={s.seeAll}>See All →</Text>
           </TouchableOpacity>
         </View>
-        {todayTodos.length > 0 ? (
-          todayTodos.map((todo) => (
-            <View key={todo.id} style={s.todoRow}>
-              <TouchableOpacity
-                onPress={() => handleToggle(todo.id, !todo.completed)}
-                activeOpacity={0.7}
-                style={s.checkboxTouch}
-              >
-                <Ionicons
-                  name={todo.completed ? "checkbox" : "square-outline"}
-                  size={20}
-                  color={todo.completed ? theme.colors.primary : theme.colors.textTertiary}
-                />
-              </TouchableOpacity>
-              <View style={s.todoContent}>
-                <Text style={s.todoTitle} numberOfLines={1}>{todo.title}</Text>
-                {todo.plannedDurationMinutes > 0 && (
-                  <Text style={s.todoDuration}>{todo.plannedDurationMinutes}m</Text>
-                )}
-              </View>
-              <TouchableOpacity
-                onPress={() => handleStartFocus(todo)}
-                style={[s.startFocusBadge, { backgroundColor: theme.colors.primary + "15" }]}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="play" size={14} color={theme.colors.primary} />
-                <Text style={[s.startFocusText, { color: theme.colors.primary }]}>Start Focus</Text>
-              </TouchableOpacity>
+
+        {/* Planner Summary Card */}
+        <View style={s.plannerSummary}>
+          <View style={s.plannerSummaryTop}>
+            <View style={s.plannerSummaryLeft}>
+              <Text style={s.plannerSummaryTitle}>Today's Progress</Text>
+              <Text style={s.plannerSummaryCount}>
+                {completedCount}/{totalTasks} Tasks Done
+              </Text>
             </View>
-          ))
+            <View style={s.plannerSummaryRight}>
+              <View style={s.plannerStatItem}>
+                <Ionicons name="time-outline" size={14} color={theme.colors.primary} />
+                <Text style={s.plannerStatText}>
+                  {formatStudyTime(totalFocusedSeconds)} / {formatStudyTime(totalPlannedSeconds)}
+                </Text>
+              </View>
+              <Text style={s.plannerStatLabel}>Focused</Text>
+            </View>
+          </View>
+          {/* Progress bar */}
+          <View style={s.progressBarBg}>
+            <View
+              style={[
+                s.progressBarFill,
+                {
+                  width: `${Math.round(progressFraction * 100)}%`,
+                  backgroundColor: progressFraction >= 1 ? theme.colors.success : theme.colors.primary,
+                },
+              ]}
+            />
+          </View>
+        </View>
+
+        {/* Todo Cards */}
+        {todayTodos.length > 0 ? (
+          todayTodos.map((todo) => {
+            const cat = CATEGORIES.find((c) => c.id === todo.subjectId);
+            const todoPlannedSecs = (todo.plannedDurationMinutes || 0) * 60;
+            const todoProgress = todoPlannedSecs > 0
+              ? Math.min((todo.actualFocusSeconds || 0) / todoPlannedSecs, 1)
+              : 0;
+            return (
+              <View key={todo.id} style={s.todoCard}>
+                {/* Row 1: Checkbox + Title + Focus button */}
+                <View style={s.todoCardRow1}>
+                  <TouchableOpacity
+                    onPress={() => handleToggle(todo.id, !todo.completed)}
+                    activeOpacity={0.7}
+                    style={s.checkboxTouch}
+                  >
+                    <Ionicons
+                      name={todo.completed ? "checkbox" : "square-outline"}
+                      size={20}
+                      color={todo.completed ? theme.colors.primary : theme.colors.textTertiary}
+                    />
+                  </TouchableOpacity>
+                  <View style={s.todoCardTitleArea}>
+                    <Text style={s.todoTitle} numberOfLines={1}>{todo.title}</Text>
+                    <Text style={s.todoCardMeta}>
+                      {cat ? cat.label : "General"}{" "}
+                      {todo.plannedDurationMinutes > 0 && `• ${todo.plannedDurationMinutes}m`}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleStartFocus(todo)}
+                    style={[s.focusPill, { backgroundColor: theme.colors.primary }]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="play" size={12} color="#fff" />
+                    <Text style={s.focusPillText}>Focus</Text>
+                  </TouchableOpacity>
+                </View>
+                {/* Progress bar */}
+                {todoPlannedSecs > 0 && (
+                  <View style={s.todoProgressBarBg}>
+                    <View
+                      style={[
+                        s.todoProgressBarFill,
+                        {
+                          width: `${Math.round(todoProgress * 100)}%`,
+                          backgroundColor: todoProgress >= 1 ? theme.colors.success : theme.colors.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+                )}
+                {/* Row 2: Time stats */}
+                <View style={s.todoCardRow2}>
+                  <Ionicons name="timer-outline" size={12} color={theme.colors.textTertiary} />
+                  <Text style={s.todoCardTimeText}>
+                    {formatStudyTime(todo.actualFocusSeconds || 0)} / {formatStudyTime(todoPlannedSecs)}
+                  </Text>
+                </View>
+              </View>
+            );
+          })
         ) : (
           <View style={s.emptyTodos}>
-            <Text style={s.emptyTodosText}>No Todos Yet</Text>
+            <Ionicons name="document-text-outline" size={32} color={theme.colors.textTertiary} />
+            <Text style={s.emptyTodosTitle}>No tasks planned today</Text>
+            <Text style={s.emptyTodosSub}>Create your first task from Todos</Text>
           </View>
         )}
 
@@ -251,6 +329,7 @@ function createStyles(theme: any) {
     categoryScroll: { marginBottom: 20 },
     categoryChip: { backgroundColor: theme.colors.surface, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, alignItems: "center", gap: 6, borderWidth: 1.5, minWidth: 72 },
     categoryLabel: { fontSize: 11, fontWeight: "700" },
+    // ---- Old todo styles kept for reference (unused in new design) ----
     todoRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider },
     checkboxTouch: { padding: 4 },
     todoContent: { flex: 1, justifyContent: "center", gap: 2 },
@@ -258,7 +337,143 @@ function createStyles(theme: any) {
     todoDuration: { fontSize: 12, fontWeight: "700", color: theme.colors.textSecondary },
     startFocusBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
     startFocusText: { fontSize: 12, fontWeight: "700" },
-    emptyTodos: { backgroundColor: theme.colors.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, padding: 16, alignItems: "center" },
-    emptyTodosText: { fontSize: 13, color: theme.colors.textTertiary, fontWeight: "500" },
+    // ---- Planner Summary Card ----
+    plannerSummary: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: 16,
+      marginBottom: 12,
+    },
+    plannerSummaryTop: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    plannerSummaryLeft: {
+      flex: 1,
+    },
+    plannerSummaryTitle: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: theme.colors.text,
+      marginBottom: 4,
+    },
+    plannerSummaryCount: {
+      fontSize: 13,
+      fontWeight: "500",
+      color: theme.colors.textSecondary,
+    },
+    plannerSummaryRight: {
+      alignItems: "flex-end",
+    },
+    plannerStatItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+    },
+    plannerStatText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: theme.colors.text,
+    },
+    plannerStatLabel: {
+      fontSize: 10,
+      fontWeight: "600",
+      color: theme.colors.textTertiary,
+      marginTop: 2,
+    },
+    progressBarBg: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: theme.colors.divider,
+      overflow: "hidden",
+    },
+    progressBarFill: {
+      height: "100%",
+      borderRadius: 3,
+    },
+    // ---- Todo Card ----
+    todoCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: 14,
+      marginBottom: 10,
+    },
+    todoCardRow1: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    todoCardTitleArea: {
+      flex: 1,
+      justifyContent: "center",
+    },
+    todoCardMeta: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: theme.colors.textTertiary,
+      marginTop: 1,
+    },
+    focusPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+    },
+    focusPillText: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: "#fff",
+    },
+    todoProgressBarBg: {
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: theme.colors.divider,
+      overflow: "hidden",
+      marginTop: 10,
+    },
+    todoProgressBarFill: {
+      height: "100%",
+      borderRadius: 2,
+    },
+    todoCardRow2: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginTop: 6,
+    },
+    todoCardTimeText: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: theme.colors.textTertiary,
+    },
+    // ---- Empty State ----
+    emptyTodos: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingVertical: 32,
+      alignItems: "center",
+      gap: 6,
+    },
+    emptyTodosTitle: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: theme.colors.textSecondary,
+      marginTop: 8,
+    },
+    emptyTodosSub: {
+      fontSize: 12,
+      fontWeight: "500",
+      color: theme.colors.textTertiary,
+    },
   });
 }

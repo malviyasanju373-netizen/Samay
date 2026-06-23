@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/context/ThemeContext";
-import { useFocusTimer } from "@/hooks/useFocusTimer";
+import { useFocusTimerContext } from "@/context/FocusTimerContext";
 import { CATEGORIES } from "@/types/session";
 import { addFocusSeconds } from "@/services/todos";
 import firestore from "@react-native-firebase/firestore";
@@ -31,7 +31,7 @@ function pad(n: number) { return String(n).padStart(2, "0"); }
 
 export default function TimerScreen({ route, navigation }: any) {
   const { theme } = useTheme();
-  const { timerState, minutes, seconds, progress, activeSession, error, clearError, start, pause, resume, stop, cancel, reset } = useFocusTimer();
+  const { timerState, minutes, seconds, progress, activeSession, error, clearError, start, pause, resume, stop, cancel, reset } = useFocusTimerContext();
   const s = createStyles(theme);
   console.log("[TIMER PARAMS]", JSON.stringify(route?.params));
   const routeParams = route?.params ?? {};
