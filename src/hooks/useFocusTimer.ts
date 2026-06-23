@@ -255,8 +255,8 @@ export function useFocusTimer() {
       return 0;
     }
 
-    const durationMinutes = Math.max(1, Math.floor(elapsedSeconds / 60));
     const durationSeconds = Math.max(0, elapsedSeconds);
+    const durationMinutes = Math.floor(durationSeconds / 60);
 
     try {
       const savedRaw = await AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
@@ -280,7 +280,7 @@ export function useFocusTimer() {
       setElapsedSeconds(0);
       setActiveSession(null);
       await AsyncStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION);
-      return durationMinutes;
+      return durationSeconds;
     } catch (err: any) {
       setTimerState("paused");
       setError(err?.message ?? "Could not save the session. Check your connection and try again.");

@@ -9,7 +9,7 @@ import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/context/ThemeContext";
 import { useFocusTimer } from "@/hooks/useFocusTimer";
 import { CATEGORIES } from "@/types/session";
-import { updateTodo } from "@/services/todos";
+import { addFocusSeconds } from "@/services/todos";
 import firestore from "@react-native-firebase/firestore";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -48,7 +48,7 @@ export default function TimerScreen({ route, navigation }: any) {
   const [showStartModal, setShowStartModal] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
   const [showCompletionModal, setShowCompletionModal] = useState(false);
-  const [completedMinutes, setCompletedMinutes] = useState(0);
+  const [completedSeconds, setCompletedSeconds] = useState(0);
   const [busy, setBusy] = useState(false);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -102,7 +102,7 @@ export default function TimerScreen({ route, navigation }: any) {
     const done = await stop();
 
     if (typeof done === "number" && done > 0) {
-      setCompletedMinutes(done);
+      setCompletedSeconds(done);
       setShowCompletionModal(true);
     }
     
@@ -124,21 +124,19 @@ export default function TimerScreen({ route, navigation }: any) {
     setBusy(true);
     console.log("[TRASH PRESSED]");
     await cancel();
-    setCompletedMinutes(0);
+    setCompletedSeconds(0);
     setShowCompletionModal(false);
     setBusy(false);
   };
 
   const handleDone = async () => {
     console.log("[TIMER RESET]");
-    if (todoId) {
+    if (todoId && completedSeconds > 0) {
       try {
-        await updateTodo(todoId, {
-          completed: true,
-          completedAt: firestore.FieldValue.serverTimestamp() as any,
-        });
+        await addFocusSeconds(todoId, completedSeconds);
+        console.log("[TODO FLOW] addFocusSeconds called for todo", todoId, "with", completedSeconds, "seconds");
       } catch (err) {
-        console.error("[TimerScreen] Failed to update todo on completion:", err);
+        console.error("[TimerScreen] Failed to add focus seconds to todo:", err);
       }
     }
     await reset();
@@ -147,7 +145,7 @@ export default function TimerScreen({ route, navigation }: any) {
     setCustomTitle("");
     setShowStartModal(false);
     setShowCompletionModal(false);
-    setCompletedMinutes(0);
+    setCompletedSeconds(0);
   };
 
   return (
@@ -303,9 +301,9 @@ export default function TimerScreen({ route, navigation }: any) {
             <Text style={{ fontSize: 48, textAlign: "center", marginBottom: 8 }}>✅</Text>
             <Text style={s.modalTitle}>Session Complete!</Text>
             <Text style={s.completionTime}>
-              {Math.floor(completedMinutes / 60) > 0
-                ? `${Math.floor(completedMinutes / 60)}h ${completedMinutes % 60}m`
-                : `${completedMinutes}m`}
+              {Math.floor(completedSeconds / 3600) > 0
+                ? `${Math.floor(completedSeconds / 3600)}h ${Math.floor((completedSeconds % 3600) / 60)}m`
+                : `${Math.ceil(completedSeconds / 60)}m`}
             </Text>
             <Text style={s.completionLabel}>focused</Text>
             <TouchableOpacity onPress={handleDone} style={[s.modalBtn, { backgroundColor: theme.colors.primary, marginTop: 20 }]} activeOpacity={0.85}>

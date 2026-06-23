@@ -19,6 +19,7 @@ import { useTodos } from "@/hooks/useTodos";
 import { addTodo, toggleTodo, deleteTodo } from "@/services/todos";
 import { Todo } from "@/types/todo";
 import { CATEGORIES } from "@/types/session";
+import { formatStudyTime } from "@/utils/timeFormat";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SWIPE_THRESHOLD = -80;
@@ -81,8 +82,16 @@ const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete, onStar
     return `${m}m`;
   };
 
+  const actualFocusSeconds = todo.actualFocusSeconds || 0;
+  const planned = todo.plannedDurationMinutes || 0;
+  const plannedSeconds = planned * 60;
+  const percent = plannedSeconds > 0 ? Math.min((actualFocusSeconds / plannedSeconds) * 100, 100) : 0;
+  const showProgress = planned > 0;
+  const focusDisplay = actualFocusSeconds > 0 ? formatStudyTime(actualFocusSeconds) : "0s";
+  const plannedDisplay = planned > 0 ? formatStudyTime(plannedSeconds) : "";
+
   return (
-    <View style={[s.todoItemContainer, { height: 72 }]}>
+    <View style={[s.todoItemContainer, { height: showProgress ? 92 : 72 }]}>
       {/* Delete button behind */}
       <View style={[s.deleteButton, { width: DELETE_BUTTON_WIDTH }]}>
         <TouchableOpacity onPress={handleDelete} style={s.deleteButtonInner}>
@@ -116,7 +125,21 @@ const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete, onStar
           >
             {todo.title}
           </Text>
-          {formatDuration(todo.plannedDurationMinutes) ? (
+          {todo.completed ? (
+            <View style={s.progressRow}>
+              <View style={s.progressBarBg}>
+                <View style={[s.progressBarFill, { width: "100%", backgroundColor: theme.colors.primary }]} />
+              </View>
+              <Text style={s.progressText}>100%</Text>
+            </View>
+          ) : showProgress ? (
+            <View style={s.progressRow}>
+              <View style={s.progressBarBg}>
+                <View style={[s.progressBarFill, { width: `${Math.min(percent, 100)}%`, backgroundColor: theme.colors.primary }]} />
+              </View>
+              <Text style={s.progressText}>{focusDisplay} / {plannedDisplay}</Text>
+            </View>
+          ) : formatDuration(todo.plannedDurationMinutes) ? (
             <View style={s.durationRow}>
               <Ionicons name="time-outline" size={12} color={theme.colors.textTertiary} />
               <Text style={s.durationText}>
@@ -417,6 +440,29 @@ function createStyles(theme: any) {
     todoTitleCompleted: {
       textDecorationLine: "line-through",
       color: theme.colors.textTertiary,
+    },
+    progressRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    progressBarBg: {
+      flex: 1,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: theme.colors.border,
+      overflow: "hidden",
+    },
+    progressBarFill: {
+      height: "100%",
+      borderRadius: 3,
+    },
+    progressText: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: theme.colors.textSecondary,
+      minWidth: 60,
+      textAlign: "right",
     },
     durationRow: {
       flexDirection: "row",

@@ -31,6 +31,7 @@ export async function addTodo(
       title,
       subjectId,
       completed: false,
+      actualFocusSeconds: 0,
       plannedDurationMinutes,
       plannedStartTime,
       createdAt: firestore.FieldValue.serverTimestamp(),
@@ -64,6 +65,47 @@ export async function deleteTodo(todoId: string): Promise<void> {
     await getTodosRef(uid).doc(todoId).delete();
   } catch (err: any) {
     console.error("[todos] deleteTodo failed:", err?.message, err?.code);
+    throw err;
+  }
+}
+
+const COMPLETION_THRESHOLD = 0.8; // 80%
+
+export async function addFocusSeconds(todoId: string, sessionDurationSeconds: number): Promise<void> {
+  const uid = getUid();
+  const db = requireFirestore();
+  const todoRef = getTodosRef(uid).doc(todoId);
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const doc = await transaction.get(todoRef);
+      if (!doc.exists) {
+        console.warn("[todos] addFocusSeconds: todo not found", todoId);
+        return;
+      }
+
+      const data = doc.data()!;
+      const currentActual = typeof data.actualFocusSeconds === "number" ? data.actualFocusSeconds : 0;
+      const newActual = currentActual + sessionDurationSeconds;
+      const plannedMinutes = data.plannedDurationMinutes || 0;
+      const plannedSeconds = plannedMinutes * 60;
+
+      const updates: Record<string, any> = {
+        actualFocusSeconds: newActual,
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      };
+
+      // Auto-complete if cumulative focus >= 80% of planned duration (in seconds)
+      if (plannedSeconds > 0 && newActual >= plannedSeconds * COMPLETION_THRESHOLD && !data.completed) {
+        updates.completed = true;
+        updates.completedAt = firestore.FieldValue.serverTimestamp();
+        console.log("[todos] addFocusSeconds: todo auto-completed at", newActual, "of", plannedSeconds, "seconds");
+      }
+
+      transaction.update(todoRef, updates);
+    });
+  } catch (err: any) {
+    console.error("[todos] addFocusSeconds failed:", err?.message, err?.code);
     throw err;
   }
 }
