@@ -12,6 +12,8 @@ import { FocusSession, CATEGORIES } from "@/types/session";
 import { useTodos } from "@/hooks/useTodos";
 import { toggleTodo } from "@/services/todos";
 import { Todo } from "@/types/todo";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { useStudyStreak } from "@/hooks/useStudyStreak";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatStudyTime } from "@/utils/timeFormat";
 
@@ -42,6 +44,8 @@ export default function HomeScreen({ navigation }: any) {
   const [error, setError] = useState<string | null>(null);
   const { todos: allTodos } = useTodos();
   const todayTodos = useMemo(() => allTodos.filter((t) => !t.completed).slice(0, 3), [allTodos]);
+  const { profile: userProfile } = useUserProfile();
+  const { currentStreak, bestStreak } = useStudyStreak();
 
   // Planner summary computations
   const activeCount = useMemo(() => todayTodos.length, [todayTodos]);
@@ -148,6 +152,67 @@ export default function HomeScreen({ navigation }: any) {
             </View>
           </View>
         </TouchableOpacity>
+
+        {/* Daily Goal Progress Card */}
+        {(() => {
+          const dailyGoalMinutes = userProfile?.dailyGoalMinutes ?? null;
+          const dailyGoalSeconds = (dailyGoalMinutes ?? 0) * 60;
+          const progressFraction = dailyGoalSeconds > 0
+            ? Math.min(todaySeconds / dailyGoalSeconds, 1)
+            : 0;
+          const percentage = Math.round(progressFraction * 100);
+          const goalAchieved = dailyGoalMinutes !== null && dailyGoalMinutes > 0 && percentage >= 100;
+
+          if (dailyGoalMinutes === null || dailyGoalMinutes === 0) {
+            return (
+              <View style={s.goalCard}>
+                <Text style={s.goalTitle}>Daily Goal</Text>
+                <Text style={s.goalPlaceholder}>Set your daily goal from Profile</Text>
+              </View>
+            );
+          }
+
+          return (
+            <View style={s.goalCard}>
+              <View style={s.goalTopRow}>
+                <Text style={s.goalTitle}>Daily Goal</Text>
+                {goalAchieved && <Text style={s.goalAchieved}>⭐ Goal Achieved</Text>}
+              </View>
+              <Text style={s.goalProgressText}>
+                {formatStudyTime(todaySeconds)} / {formatStudyTime(dailyGoalSeconds)}
+              </Text>
+              <View style={s.goalProgressBarBg}>
+                <View
+                  style={[
+                    s.goalProgressBarFill,
+                    {
+                      width: `${percentage}%`,
+                      backgroundColor: goalAchieved ? theme.colors.success : theme.colors.primary,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={s.goalPercentage}>{percentage}%</Text>
+            </View>
+          );
+        })()}
+
+        {/* Study Streak Card */}
+        <View style={s.streakCard}>
+          <View style={s.streakHeader}>
+            <Text style={s.streakTitle}>🔥 Current Streak</Text>
+          </View>
+          <View style={s.streakValues}>
+            <View style={s.streakValueItem}>
+              <Text style={s.streakValue}>{currentStreak} Days</Text>
+            </View>
+            <View style={s.streakDivider} />
+            <View style={s.streakValueItem}>
+              <Text style={s.streakLabel}>Best</Text>
+              <Text style={s.streakValue}>{bestStreak} Days</Text>
+            </View>
+          </View>
+        </View>
 
         {/* Mini stats */}
         <View style={s.miniRow}>
@@ -319,6 +384,23 @@ function createStyles(theme: any) {
     heroRight: { paddingLeft: 12 },
     startBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24 },
     startBadgeText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+    goalCard: { backgroundColor: theme.colors.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, padding: 16, marginBottom: 14 },
+    goalTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+    goalTitle: { fontSize: 15, fontWeight: "700", color: theme.colors.text },
+    goalPlaceholder: { fontSize: 14, fontWeight: "500", color: theme.colors.textTertiary, marginTop: 4 },
+    goalProgressText: { fontSize: 22, fontWeight: "800", color: theme.colors.text, marginVertical: 8 },
+    goalProgressBarBg: { height: 6, borderRadius: 3, backgroundColor: theme.colors.divider, overflow: "hidden", marginBottom: 8 },
+    goalProgressBarFill: { height: "100%", borderRadius: 3 },
+    goalPercentage: { fontSize: 13, fontWeight: "700", color: theme.colors.textSecondary, textAlign: "right" },
+    goalAchieved: { fontSize: 13, fontWeight: "700", color: theme.colors.success },
+    streakCard: { backgroundColor: theme.colors.surface, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, padding: 16, marginBottom: 14 },
+    streakHeader: { marginBottom: 8 },
+    streakTitle: { fontSize: 15, fontWeight: "700", color: theme.colors.text },
+    streakValues: { flexDirection: "row", alignItems: "center", gap: 16 },
+    streakValueItem: { flex: 1, alignItems: "center" },
+    streakValue: { fontSize: 22, fontWeight: "800", color: theme.colors.text },
+    streakLabel: { fontSize: 11, fontWeight: "600", color: theme.colors.textTertiary, marginBottom: 2 },
+    streakDivider: { width: 1, height: 32, backgroundColor: theme.colors.border },
     miniRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
     miniCard: { flex: 1, backgroundColor: theme.colors.surface, borderRadius: 16, padding: 14, alignItems: "center", gap: 4, borderWidth: 1, borderColor: theme.colors.border },
     miniValue: { fontSize: 14, fontWeight: "800", color: theme.colors.text },

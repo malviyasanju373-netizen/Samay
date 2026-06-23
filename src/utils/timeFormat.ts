@@ -75,6 +75,23 @@ export function formatLastActive(timestampMs: number): string {
   return `${days}d ago`;
 }
 
+/**
+ * Format duration in seconds to a compact string: "2h 14m", "18m", "45s"
+ */
+export function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m`;
+  }
+  return `${secs}s`;
+}
+
 export function isCurrentlyStudying(activeSessionStartedAtMs?: number): boolean {
   if (!activeSessionStartedAtMs) return false;
   const now = Date.now();

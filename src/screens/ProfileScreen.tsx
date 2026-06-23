@@ -10,7 +10,7 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import {
-  changeUsername, cooldownDaysRemaining, updateDisplayName, updateGoal,
+  changeUsername, cooldownDaysRemaining, updateDisplayName, updateGoal, updateDailyGoalMinutes,
 } from "@/services/userProfile";
 import { testCreateTodo } from "@/services/todos";
 import { getRecentSessions } from "@/services/sessions";
@@ -53,6 +53,8 @@ export default function ProfileScreen({ navigation }: any) {
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [editingGoal, setEditingGoal] = useState("");
   const [goalLoading, setGoalLoading] = useState(false);
+  const [isEditingDailyGoal, setIsEditingDailyGoal] = useState(false);
+  const [dailyGoalLoading, setDailyGoalLoading] = useState(false);
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [recentSessions, setRecentSessions] = useState<FocusSession[]>([]);
@@ -150,6 +152,17 @@ export default function ProfileScreen({ navigation }: any) {
       await reloadProfile();
     } catch (err: any) { showDialog("Error", err.message); }
     setGoalLoading(false);
+  };
+
+  const handleSaveDailyGoal = async (minutes: number | null) => {
+    if (!user) return;
+    setDailyGoalLoading(true);
+    try {
+      await updateDailyGoalMinutes(user.uid, minutes);
+      setIsEditingDailyGoal(false);
+      await reloadProfile();
+    } catch (err: any) { showDialog("Error", err.message); }
+    setDailyGoalLoading(false);
   };
 
   const handleCreateTestTodo = async () => {
@@ -275,6 +288,54 @@ export default function ProfileScreen({ navigation }: any) {
             )}
           </View>
 
+          {/* Daily Goal */}
+          <View style={s.section}>
+            <Text style={s.sectionLabel}>DAILY GOAL</Text>
+            {isEditingDailyGoal ? (
+              <View style={s.dailyGoalGrid}>
+                {[
+                  { label: "30m", value: 30 },
+                  { label: "1h", value: 60 },
+                  { label: "2h", value: 120 },
+                  { label: "3h", value: 180 },
+                  { label: "5h", value: 300 },
+                  { label: "8h", value: 480 },
+                ].map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    onPress={() => handleSaveDailyGoal(opt.value)}
+                    disabled={dailyGoalLoading}
+                    style={[
+                      s.dailyGoalChip,
+                      profile?.dailyGoalMinutes === opt.value && s.dailyGoalChipActive,
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[
+                      s.dailyGoalChipText,
+                      profile?.dailyGoalMinutes === opt.value && s.dailyGoalChipTextActive,
+                    ]}>{opt.label}</Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  onPress={() => handleSaveDailyGoal(null)}
+                  disabled={dailyGoalLoading}
+                  style={[s.dailyGoalChip, s.dailyGoalChipClear]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.dailyGoalChipText, s.dailyGoalChipTextClear]}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={() => setIsEditingDailyGoal(true)} style={s.editTrigger} activeOpacity={0.8}>
+                <Text style={s.editTriggerText}>
+                  {profile?.dailyGoalMinutes ? `${profile.dailyGoalMinutes} min` : "Set daily goal"}
+                </Text>
+                <Ionicons name="pencil" size={15} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+
           {/* Theme */}
           <View style={s.section}>
             <Text style={s.sectionLabel}>APPEARANCE</Text>
@@ -353,6 +414,13 @@ function createStyles(theme: any) {
     saveChipText: { fontSize: 13, fontWeight: "700", color: "#fff" },
     cancelChip: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: theme.colors.border },
     cancelChipText: { fontSize: 13, fontWeight: "600", color: theme.colors.textSecondary },
+    dailyGoalGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    dailyGoalChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.background },
+    dailyGoalChipActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+    dailyGoalChipText: { fontSize: 13, fontWeight: "600", color: theme.colors.textSecondary },
+    dailyGoalChipTextActive: { color: theme.colors.textInverse },
+    dailyGoalChipClear: { borderColor: theme.colors.border, backgroundColor: "transparent" },
+    dailyGoalChipTextClear: { color: theme.colors.textTertiary },
     themeRow: { flexDirection: "row", gap: 8 },
     themeChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: theme.colors.border },
     themeChipActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },

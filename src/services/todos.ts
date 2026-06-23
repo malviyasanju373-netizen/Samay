@@ -20,7 +20,8 @@ export async function addTodo(
   title: string,
   subjectId: string | null = null,
   plannedDurationMinutes: number = 0,
-  plannedStartTime: FirebaseFirestoreTypes.Timestamp | null = null
+  plannedStartTime: FirebaseFirestoreTypes.Timestamp | null = null,
+  plannedDate?: string
 ): Promise<string> {
   const uid = getUid();
   const db = requireFirestore();
@@ -34,6 +35,7 @@ export async function addTodo(
       actualFocusSeconds: 0,
       plannedDurationMinutes,
       plannedStartTime,
+      plannedDate,
       createdAt: firestore.FieldValue.serverTimestamp(),
       updatedAt: firestore.FieldValue.serverTimestamp(),
     });

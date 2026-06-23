@@ -9,6 +9,7 @@ export type Todo = {
   plannedDurationMinutes: number;
   actualFocusSeconds: number;
   plannedStartTime: FirebaseFirestoreTypes.Timestamp | null;
+  plannedDate?: string;
   createdAt: FirebaseFirestoreTypes.Timestamp;
   updatedAt: FirebaseFirestoreTypes.Timestamp;
 };

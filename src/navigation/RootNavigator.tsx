@@ -10,6 +10,7 @@ import HomeScreen     from "@/screens/HomeScreen";
 import TimerScreen    from "@/screens/TimerScreen";
 import SessionsScreen from "@/screens/SessionsScreen";
 import StatsScreen    from "@/screens/StatsScreen";
+import CalendarScreen from "@/screens/CalendarScreen";
 import ProfileScreen  from "@/screens/ProfileScreen";
 import LeaderboardScreen    from "@/screens/LeaderboardScreen";
 import GroupsListScreen     from "@/screens/GroupsListScreen";
@@ -98,12 +99,12 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Stats"
-        component={StatsScreen}
+        name="Calendar"
+        component={CalendarScreen}
         options={{
-          tabBarLabel: "Stats",
+          tabBarLabel: "Calendar",
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? "bar-chart" : "bar-chart-outline"} size={focused ? 25 : 22} color={color} />
+            <Ionicons name={focused ? "calendar" : "calendar-outline"} size={focused ? 25 : 22} color={color} />
           ),
         }}
       />
@@ -114,16 +115,6 @@ function TabNavigator() {
           tabBarLabel: "Groups",
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? "people" : "people-outline"} size={focused ? 25 : 22} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileScreen}
-        options={{
-          tabBarLabel: "Profile",
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? "person" : "person-outline"} size={focused ? 25 : 22} color={color} />
           ),
         }}
       />
@@ -148,6 +139,7 @@ export default function RootNavigator() {
       <Stack.Screen name="GeneralFeedback"  component={GeneralFeedbackScreen} />
       <Stack.Screen name="GroupChat"        component={GroupChatScreen} />
       <Stack.Screen name="CamStudyComingSoon" component={CamStudyComingSoonScreen} />
+      <Stack.Screen name="Stats" component={StatsScreen} />
       <Stack.Screen name="TodoScreen" component={TodoScreen} />
     </Stack.Navigator>
   );

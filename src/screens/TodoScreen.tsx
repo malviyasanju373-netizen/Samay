@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
@@ -149,6 +150,12 @@ const TodoItem = React.memo(function TodoItem({
             >
               {todo.title}
             </Text>
+            {todo.plannedDate && (
+              <View style={s.plannedDateBadge}>
+                <Ionicons name="calendar-outline" size={11} color={theme.colors.textTertiary} />
+                <Text style={s.plannedDateText}>{formatDateLabel(todo.plannedDate)}</Text>
+              </View>
+            )}
             {subject && (
               <View style={s.subjectBadge}>
                 <View style={[s.subjectDot, { backgroundColor: subject.color }]} />
@@ -253,7 +260,7 @@ const TodoItem = React.memo(function TodoItem({
   );
 });
 
-export default function TodoScreen({ navigation }: any) {
+export default function TodoScreen({ navigation, route }: any) {
   const { theme } = useTheme();
   const s = createStyles(theme);
   const { todos, loading, error } = useTodos();
@@ -263,10 +270,15 @@ export default function TodoScreen({ navigation }: any) {
   const [title, setTitle] = useState("");
   const [duration, setDuration] = useState("");
   const [subjectId, setSubjectId] = useState<string | null>(null);
+  const [plannedDate, setPlannedDate] = useState<string>(getTodayString());
   const [submitting, setSubmitting] = useState(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [filter, setFilter] = useState<FilterMode>("active");
   const [activeTodoId, setActiveTodoId] = useState<string | null>(null);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+
+  // Read preselectedDate from navigation params (e.g. from Calendar)
+  const preselectedDate = route?.params?.preselectedDate;
 
   const isEditing = editingTodo !== null;
 
@@ -317,14 +329,16 @@ export default function TodoScreen({ navigation }: any) {
     setTitle("");
     setDuration("");
     setSubjectId(null);
+    setPlannedDate(preselectedDate || getTodayString());
     setModalVisible(true);
-  }, []);
+  }, [preselectedDate]);
 
   const openEditModal = useCallback((todo: Todo) => {
     setEditingTodo(todo);
     setTitle(todo.title);
     setDuration(todo.plannedDurationMinutes > 0 ? String(todo.plannedDurationMinutes) : "");
     setSubjectId(todo.subjectId);
+    setPlannedDate(todo.plannedDate || getTodayString());
     setModalVisible(true);
   }, []);
 
@@ -336,17 +350,18 @@ export default function TodoScreen({ navigation }: any) {
 
     setSubmitting(true);
     try {
-      await addTodo(trimmed, subjectId, minutes, null);
+      await addTodo(trimmed, subjectId, minutes, null, plannedDate);
       setModalVisible(false);
       setTitle("");
       setDuration("");
       setSubjectId(null);
+      setPlannedDate(getTodayString());
     } catch (err: any) {
       Alert.alert("Error", err?.message ?? "Could not create todo.");
     } finally {
       setSubmitting(false);
     }
-  }, [title, duration, subjectId]);
+  }, [title, duration, subjectId, plannedDate]);
 
   const handleUpdate = useCallback(async () => {
     const trimmed = title.trim();
@@ -360,18 +375,20 @@ export default function TodoScreen({ navigation }: any) {
         title: trimmed,
         subjectId,
         plannedDurationMinutes: minutes,
+        plannedDate,
       });
       setModalVisible(false);
       setEditingTodo(null);
       setTitle("");
       setDuration("");
       setSubjectId(null);
+      setPlannedDate(getTodayString());
     } catch (err: any) {
       Alert.alert("Error", err?.message ?? "Could not update todo.");
     } finally {
       setSubmitting(false);
     }
-  }, [title, duration, subjectId, editingTodo]);
+  }, [title, duration, subjectId, editingTodo, plannedDate]);
 
   const handleToggle = useCallback((id: string, completed: boolean) => {
     toggleTodo(id, completed).catch((err: any) => {
@@ -604,6 +621,32 @@ export default function TodoScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
 
+            {/* Date Picker Modal */}
+            <Modal visible={datePickerVisible} transparent animationType="fade" onRequestClose={() => setDatePickerVisible(false)}>
+              <TouchableOpacity style={s.datePickerOverlay} activeOpacity={1} onPress={() => setDatePickerVisible(false)}>
+                <View style={s.datePickerModal}>
+                  <Text style={s.datePickerTitle}>Select Date</Text>
+                  <ScrollView style={s.datePickerScroll} contentContainerStyle={s.datePickerContent}>
+                    {generateDateOptions().map((opt) => (
+                      <TouchableOpacity
+                        key={opt.value}
+                        onPress={() => { setPlannedDate(opt.value); setDatePickerVisible(false); }}
+                        style={[s.dateOption, plannedDate === opt.value && s.dateOptionSelected]}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[s.dateOptionText, plannedDate === opt.value && s.dateOptionTextSelected]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  <TouchableOpacity onPress={() => setDatePickerVisible(false)} style={s.datePickerCloseBtn}>
+                    <Text style={s.datePickerCloseText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </Modal>
+
             <TextInput
               style={s.input}
               placeholder="What needs to be done?"
@@ -621,6 +664,18 @@ export default function TodoScreen({ navigation }: any) {
               onChangeText={setDuration}
               keyboardType="number-pad"
             />
+
+            {/* Planned Date */}
+            <Text style={s.sectionLabel}>Planned Date</Text>
+            <TouchableOpacity
+              onPress={() => setDatePickerVisible(true)}
+              style={s.datePickerBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="calendar-outline" size={18} color={theme.colors.primary} />
+              <Text style={s.datePickerBtnText}>{formatDateLabel(plannedDate)}</Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
 
             {/* Subject Picker */}
             <Text style={s.sectionLabel}>Subject (optional)</Text>
@@ -679,6 +734,51 @@ export default function TodoScreen({ navigation }: any) {
       )}
     </SafeAreaView>
   );
+}
+
+function generateDateOptions(): Array<{ label: string; value: string }> {
+  const options: Array<{ label: string; value: string }> = [];
+  const today = new Date();
+
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const value = `${y}-${m}-${day}`;
+
+    let label: string;
+    if (i === 0) label = "Today";
+    else if (i === 1) label = "Tomorrow";
+    else label = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+
+    options.push({ label, value });
+  }
+
+  return options;
+}
+
+function getTodayString(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatDateLabel(dateStr: string): string {
+  if (!dateStr) return "Select date";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  if (dateStr === getTodayString()) return "Today";
+  if (dateStr === `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`) return "Tomorrow";
+
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function createStyles(theme: any) {
@@ -842,6 +942,17 @@ function createStyles(theme: any) {
       fontWeight: "500",
       color: theme.colors.textSecondary,
     },
+    plannedDateBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 3,
+      marginTop: 1,
+    },
+    plannedDateText: {
+      fontSize: 11,
+      fontWeight: "500",
+      color: theme.colors.textTertiary,
+    },
     progressBarBg: {
       flex: 1,
       height: 8,
@@ -996,6 +1107,87 @@ function createStyles(theme: any) {
       padding: 16,
       alignItems: "center",
       marginTop: 4,
+    },
+    datePickerBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 12,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      marginBottom: 12,
+    },
+    datePickerBtnText: {
+      flex: 1,
+      fontSize: 15,
+      fontWeight: "600",
+      color: theme.colors.text,
+    },
+    datePickerOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 24,
+    },
+    datePickerModal: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 20,
+      padding: 20,
+      width: "100%",
+      maxHeight: "70%",
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    datePickerTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.colors.text,
+      marginBottom: 12,
+      textAlign: "center",
+    },
+    datePickerScroll: {
+      maxHeight: 300,
+    },
+    datePickerContent: {
+      gap: 8,
+    },
+    dateOption: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    dateOptionSelected: {
+      backgroundColor: theme.colors.primary + "20",
+      borderColor: theme.colors.primary,
+    },
+    dateOptionText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: theme.colors.text,
+      textAlign: "center",
+    },
+    dateOptionTextSelected: {
+      color: theme.colors.primary,
+    },
+    datePickerCloseBtn: {
+      marginTop: 12,
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    datePickerCloseText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: theme.colors.textSecondary,
+      textAlign: "center",
     },
     createBtnDisabled: {
       opacity: 0.5,
