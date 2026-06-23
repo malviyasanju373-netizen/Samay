@@ -89,12 +89,12 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Sessions"
-        component={SessionsScreen}
+        name="Todo"
+        component={TodoScreen}
         options={{
-          tabBarLabel: "Sessions",
+          tabBarLabel: "Todo",
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? "list" : "list-outline"} size={focused ? 25 : 22} color={color} />
+            <Ionicons name={focused ? "checkbox" : "checkbox-outline"} size={focused ? 25 : 22} color={color} />
           ),
         }}
       />

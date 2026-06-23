@@ -53,6 +53,9 @@ const TodoItem = React.memo(function TodoItem({
   const { theme } = useTheme();
   const s = createStyles(theme);
   const translateX = useRef(new Animated.Value(0)).current;
+  const sheetTranslateY = useRef(new Animated.Value(1)).current;
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const isTimerActive = isActive && timerState !== "idle";
 
   const panResponder = useRef(
     PanResponder.create({
@@ -90,6 +93,37 @@ const TodoItem = React.memo(function TodoItem({
     });
   }, [todo.id, onDelete, translateX]);
 
+  const closeActionSheet = useCallback((afterClose?: () => void) => {
+    Animated.timing(sheetTranslateY, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(() => {
+      setActionSheetVisible(false);
+      afterClose?.();
+    });
+  }, [sheetTranslateY]);
+
+  const handleOpenActions = useCallback(() => {
+    sheetTranslateY.setValue(1);
+    setActionSheetVisible(true);
+    requestAnimationFrame(() => {
+      Animated.timing(sheetTranslateY, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [sheetTranslateY]);
+
+  const handleEditFromSheet = useCallback(() => {
+    closeActionSheet(() => onEdit(todo));
+  }, [closeActionSheet, onEdit, todo]);
+
+  const handleDeleteFromSheet = useCallback(() => {
+    closeActionSheet(handleDelete);
+  }, [closeActionSheet, handleDelete]);
+
   const formatDuration = (minutes: number) => {
     if (minutes <= 0) return null;
     const h = Math.floor(minutes / 60);
@@ -102,9 +136,10 @@ const TodoItem = React.memo(function TodoItem({
   const actualFocusSeconds = todo.actualFocusSeconds || 0;
   const planned = todo.plannedDurationMinutes || 0;
   const plannedSeconds = planned * 60;
-  const percent = plannedSeconds > 0 ? Math.min((actualFocusSeconds / plannedSeconds) * 100, 100) : 0;
   const showProgress = planned > 0;
-  const focusDisplay = actualFocusSeconds > 0 ? formatStudyTime(actualFocusSeconds) : "0s";
+  const displayFocusSeconds = actualFocusSeconds + (isTimerActive ? elapsedSeconds : 0);
+  const percent = plannedSeconds > 0 ? Math.min((displayFocusSeconds / plannedSeconds) * 100, 100) : 0;
+  const focusDisplay = displayFocusSeconds > 0 ? formatStudyTime(displayFocusSeconds) : "0s";
   const plannedDisplay = planned > 0 ? formatStudyTime(plannedSeconds) : "";
 
   const subject = todo.subjectId ? CATEGORIES.find((c) => c.id === todo.subjectId) : null;
@@ -114,149 +149,167 @@ const TodoItem = React.memo(function TodoItem({
   const timerDisplay = `${timerMinutes}m ${timerSeconds.toString().padStart(2, "0")}s`;
 
   return (
-    <View style={s.todoItemContainer}>
-      {/* Delete button behind */}
-      <View style={[s.deleteButton, { width: DELETE_BUTTON_WIDTH }]}>
-        <TouchableOpacity onPress={handleDelete} style={s.deleteButtonInner}>
-          <Ionicons name="trash-outline" size={20} color="#fff" />
-          <Text style={s.deleteButtonText}>Delete</Text>
-        </TouchableOpacity>
+    <>
+      <View style={s.todoItemContainer}>
+        {/* Delete button behind */}
+        <View style={[s.deleteButton, { width: DELETE_BUTTON_WIDTH }]}>
+          <TouchableOpacity onPress={handleDelete} style={s.deleteButtonInner}>
+            <Ionicons name="trash-outline" size={20} color="#fff" />
+            <Text style={s.deleteButtonText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Swipeable content */}
+        <Animated.View
+          style={[
+            s.todoItem,
+            { transform: [{ translateX }] },
+          ]}
+          {...panResponder.panHandlers}
+        >
+          <View style={s.cardContent}>
+            <View style={s.cardHeaderRow}>
+              <View style={s.row1}>
+                <TouchableOpacity
+                  onPress={() => onToggle(todo.id, !todo.completed)}
+                  style={s.checkboxContainer}
+                  activeOpacity={0.7}
+                >
+                  <View style={[s.checkbox, todo.completed && s.checkboxChecked]}>
+                    {todo.completed && <Ionicons name="checkmark" size={16} color="#fff" />}
+                  </View>
+                </TouchableOpacity>
+
+                <View style={s.titleContainer}>
+                  <Text
+                    style={[s.todoTitle, todo.completed && s.todoTitleCompleted]}
+                    numberOfLines={2}
+                  >
+                    {todo.title}
+                  </Text>
+                  <View style={s.metaRow}>
+                    {todo.plannedDate && (
+                      <View style={s.plannedDateBadge}>
+                        <Ionicons name="calendar-outline" size={11} color={theme.colors.textTertiary} />
+                        <Text style={s.plannedDateText}>{formatDateLabel(todo.plannedDate)}</Text>
+                      </View>
+                    )}
+                    {subject && (
+                      <View style={s.subjectBadge}>
+                        <View style={[s.subjectDot, { backgroundColor: subject.color }]} />
+                        <Text style={s.subjectLabel}>{subject.label}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity onPress={handleOpenActions} style={s.menuBtn} activeOpacity={0.7}>
+                <Ionicons name="ellipsis-vertical" size={18} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={s.progressSection}>
+              <View style={s.progressBarBg}>
+                <View
+                  style={[
+                    s.progressBarFill,
+                    {
+                      width: `${todo.completed ? 100 : Math.min(percent, 100)}%`,
+                      backgroundColor: theme.colors.primary,
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={s.progressFooter}>
+                {isTimerActive ? (
+                  <View style={s.embeddedTimerArea}>
+                    <Ionicons name="timer" size={14} color={theme.colors.primary} />
+                    <Text style={s.embeddedTimerText} numberOfLines={1}>
+                      {showProgress ? `${focusDisplay} / ${plannedDisplay}` : timerDisplay}
+                    </Text>
+                  </View>
+                ) : showProgress ? (
+                  <Text style={s.progressText} numberOfLines={1}>
+                    {todo.completed ? "100%" : `${focusDisplay} / ${plannedDisplay}`}
+                  </Text>
+                ) : formatDuration(todo.plannedDurationMinutes) ? (
+                  <View style={s.durationRow}>
+                    <Ionicons name="time-outline" size={13} color={theme.colors.textTertiary} />
+                    <Text style={s.durationText} numberOfLines={1}>
+                      {formatDuration(todo.plannedDurationMinutes)}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={s.durationRow} />
+                )}
+
+                {isTimerActive ? (
+                  <TouchableOpacity
+                    onPress={onStop}
+                    style={[s.primaryActionBtn, { backgroundColor: theme.colors.error }]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="stop" size={18} color="#fff" />
+                  </TouchableOpacity>
+                ) : !todo.completed ? (
+                  <TouchableOpacity
+                    onPress={() => onStartFocus(todo)}
+                    style={[s.primaryActionBtn, { backgroundColor: theme.colors.primary }]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="play" size={18} color="#fff" />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+          </View>
+        </Animated.View>
       </View>
 
-      {/* Swipeable content */}
-      <Animated.View
-        style={[
-          s.todoItem,
-          { transform: [{ translateX }] },
-        ]}
-        {...panResponder.panHandlers}
+      <Modal
+        visible={actionSheetVisible}
+        transparent
+        animationType="none"
+        onRequestClose={() => closeActionSheet()}
       >
-        {/* Row 1: Checkbox + Title + Edit + Delete */}
-        <View style={s.row1}>
-          <TouchableOpacity
-            onPress={() => onToggle(todo.id, !todo.completed)}
-            style={s.checkboxContainer}
-            activeOpacity={0.7}
+        <View style={s.actionSheetOverlay}>
+          <TouchableOpacity style={s.actionSheetBackdrop} activeOpacity={1} onPress={() => closeActionSheet()} />
+          <Animated.View
+            style={[
+              s.actionSheet,
+              {
+                transform: [
+                  {
+                    translateY: sheetTranslateY.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 280],
+                    }),
+                  },
+                ],
+              },
+            ]}
           >
-            <View style={[s.checkbox, todo.completed && s.checkboxChecked]}>
-              {todo.completed && <Ionicons name="checkmark" size={16} color="#fff" />}
-            </View>
-          </TouchableOpacity>
+            <View style={s.actionSheetHandle} />
+            <Text style={s.actionSheetTitle} numberOfLines={2}>{todo.title}</Text>
 
-          <View style={s.titleContainer}>
-            <Text
-              style={[s.todoTitle, todo.completed && s.todoTitleCompleted]}
-              numberOfLines={1}
-            >
-              {todo.title}
-            </Text>
-            {todo.plannedDate && (
-              <View style={s.plannedDateBadge}>
-                <Ionicons name="calendar-outline" size={11} color={theme.colors.textTertiary} />
-                <Text style={s.plannedDateText}>{formatDateLabel(todo.plannedDate)}</Text>
-              </View>
-            )}
-            {subject && (
-              <View style={s.subjectBadge}>
-                <View style={[s.subjectDot, { backgroundColor: subject.color }]} />
-                <Text style={s.subjectLabel}>{subject.label}</Text>
-              </View>
-            )}
-          </View>
-
-          <TouchableOpacity onPress={() => onEdit(todo)} style={s.editIconBtn}>
-            <Ionicons name="pencil" size={16} color={theme.colors.textTertiary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={handleDelete} style={s.deleteIconBtn}>
-            <Ionicons name="trash-outline" size={16} color={theme.colors.textTertiary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Row 2: Progress bar + Progress text + Play/Embedded Timer */}
-        <View style={s.row2}>
-          {isActive && timerState !== "idle" ? (
-            <>
-              {/* Embedded Timer Controls */}
-              <View style={s.embeddedTimerArea}>
-                <Ionicons name="timer" size={14} color={theme.colors.primary} />
-                <Text style={s.embeddedTimerText}>{timerDisplay}</Text>
-              </View>
-              <View style={s.embeddedTimerButtons}>
-                {timerState === "running" ? (
-                  <>
-                    <TouchableOpacity
-                      onPress={onPause}
-                      style={[s.timerControlBtn, { backgroundColor: theme.colors.warning }]}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="pause" size={16} color="#fff" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={onStop}
-                      style={[s.timerControlBtn, { backgroundColor: theme.colors.error }]}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="stop" size={16} color="#fff" />
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      onPress={onResume}
-                      style={[s.timerControlBtn, { backgroundColor: theme.colors.success }]}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="play" size={16} color="#fff" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={onStop}
-                      style={[s.timerControlBtn, { backgroundColor: theme.colors.error }]}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="stop" size={16} color="#fff" />
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-            </>
-          ) : todo.completed ? (
-            <>
-              <View style={s.progressBarBg}>
-                <View style={[s.progressBarFill, { width: "100%", backgroundColor: theme.colors.primary }]} />
-              </View>
-              <Text style={s.progressText}>100%</Text>
-            </>
-          ) : showProgress ? (
-            <>
-              <View style={s.progressBarBg}>
-                <View style={[s.progressBarFill, { width: `${Math.min(percent, 100)}%`, backgroundColor: theme.colors.primary }]} />
-              </View>
-              <Text style={s.progressText}>{focusDisplay} / {plannedDisplay}</Text>
-            </>
-          ) : formatDuration(todo.plannedDurationMinutes) ? (
-            <View style={s.durationRow}>
-              <Ionicons name="time-outline" size={13} color={theme.colors.textTertiary} />
-              <Text style={s.durationText}>
-                {formatDuration(todo.plannedDurationMinutes)}
-              </Text>
-            </View>
-          ) : (
-            <View style={s.durationRow} />
-          )}
-
-          {!todo.completed && !isActive && (
-            <TouchableOpacity
-              onPress={() => onStartFocus(todo)}
-              style={s.startFocusBtn}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="play" size={18} color="#fff" />
+            <TouchableOpacity style={s.actionSheetButton} onPress={handleEditFromSheet} activeOpacity={0.7}>
+              <Ionicons name="pencil-outline" size={20} color={theme.colors.text} />
+              <Text style={s.actionSheetButtonText}>Edit</Text>
             </TouchableOpacity>
-          )}
+            <TouchableOpacity style={s.actionSheetButton} onPress={handleDeleteFromSheet} activeOpacity={0.7}>
+              <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
+              <Text style={[s.actionSheetButtonText, { color: theme.colors.error }]}>Delete</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.actionSheetButton, s.actionSheetCancelButton]} onPress={() => closeActionSheet()} activeOpacity={0.7}>
+              <Ionicons name="close-outline" size={22} color={theme.colors.textSecondary} />
+              <Text style={[s.actionSheetButtonText, { color: theme.colors.textSecondary }]}>Cancel</Text>
+            </TouchableOpacity>
+          </Animated.View>
         </View>
-      </Animated.View>
-    </View>
+      </Modal>
+    </>
   );
 });
 
@@ -279,8 +332,20 @@ export default function TodoScreen({ navigation, route }: any) {
 
   // Read preselectedDate from navigation params (e.g. from Calendar)
   const preselectedDate = route?.params?.preselectedDate;
+  const rescheduleTodoId = route?.params?.rescheduleTodoId;
 
   const isEditing = editingTodo !== null;
+
+  // ------ Reschedule from Calendar ------
+  // If Calendar passes rescheduleTodoId, open that todo in edit mode
+  useEffect(() => {
+    if (rescheduleTodoId && todos.length > 0) {
+      const todo = todos.find((t) => t.id === rescheduleTodoId);
+      if (todo) {
+        openEditModal(todo);
+      }
+    }
+  }, [rescheduleTodoId, todos]);
 
   // ------ Active Todo Persistence ------
 
@@ -848,9 +913,9 @@ function createStyles(theme: any) {
       paddingBottom: 24,
     },
     todoItemContainer: {
-      height: 96,
+      minHeight: 120,
       justifyContent: "center",
-      marginBottom: 8,
+      marginBottom: 16,
       overflow: "hidden",
       borderRadius: 14,
     },
@@ -880,25 +945,36 @@ function createStyles(theme: any) {
     todoItem: {
       backgroundColor: theme.colors.surface,
       borderRadius: 14,
-      padding: 14,
+      padding: 16,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      height: 96,
-      gap: 6,
+      minHeight: 120,
+    },
+    cardContent: {
+      flex: 1,
+      gap: 12,
+    },
+    cardHeaderRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
     },
     row1: {
+      flex: 1,
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       gap: 10,
     },
-    row2: {
+    metaRow: {
       flexDirection: "row",
       alignItems: "center",
+      flexWrap: "wrap",
       gap: 8,
-      flex: 1,
+      marginTop: 8,
     },
     checkboxContainer: {
       padding: 2,
+      marginTop: 1,
     },
     checkbox: {
       width: 22,
@@ -916,12 +992,13 @@ function createStyles(theme: any) {
     },
     titleContainer: {
       flex: 1,
-      gap: 2,
+      minWidth: 0,
     },
     todoTitle: {
       fontSize: 15,
       fontWeight: "600",
       color: theme.colors.text,
+      lineHeight: 20,
     },
     todoTitleCompleted: {
       textDecorationLine: "line-through",
@@ -931,6 +1008,7 @@ function createStyles(theme: any) {
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
+      maxWidth: "100%",
     },
     subjectDot: {
       width: 6,
@@ -941,6 +1019,7 @@ function createStyles(theme: any) {
       fontSize: 11,
       fontWeight: "500",
       color: theme.colors.textSecondary,
+      flexShrink: 1,
     },
     plannedDateBadge: {
       flexDirection: "row",
@@ -953,8 +1032,74 @@ function createStyles(theme: any) {
       fontWeight: "500",
       color: theme.colors.textTertiary,
     },
-    progressBarBg: {
+    menuBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    actionSheetOverlay: {
       flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: "rgba(0,0,0,0.48)",
+    },
+    actionSheetBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    actionSheet: {
+      backgroundColor: theme.colors.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingHorizontal: 20,
+      paddingTop: 10,
+      paddingBottom: 28,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    actionSheetHandle: {
+      alignSelf: "center",
+      width: 42,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: theme.colors.border,
+      marginBottom: 16,
+    },
+    actionSheetTitle: {
+      fontSize: 17,
+      fontWeight: "700",
+      lineHeight: 22,
+      color: theme.colors.text,
+      marginBottom: 12,
+    },
+    actionSheetButton: {
+      minHeight: 52,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      backgroundColor: theme.colors.surface,
+      marginTop: 8,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    actionSheetCancelButton: {
+      marginTop: 12,
+      justifyContent: "center",
+    },
+    actionSheetButtonText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: theme.colors.text,
+    },
+    progressSection: {
+      gap: 12,
+    },
+    progressBarBg: {
       height: 8,
       borderRadius: 4,
       backgroundColor: theme.colors.border,
@@ -965,36 +1110,39 @@ function createStyles(theme: any) {
       borderRadius: 4,
     },
     progressText: {
-      fontSize: 11,
+      flex: 1,
+      fontSize: 12,
       fontWeight: "600",
       color: theme.colors.textSecondary,
-      minWidth: 70,
-      textAlign: "right",
+      paddingRight: 12,
+    },
+    progressFooter: {
+      minHeight: 38,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
     },
     durationRow: {
       flex: 1,
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
+      minWidth: 0,
+      paddingRight: 12,
     },
     durationText: {
+      flexShrink: 1,
       fontSize: 12,
       color: theme.colors.textTertiary,
       fontWeight: "500",
     },
-    startFocusBtn: {
+    primaryActionBtn: {
       width: 38,
       height: 38,
       borderRadius: 19,
-      backgroundColor: theme.colors.primary,
       alignItems: "center",
       justifyContent: "center",
-    },
-    editIconBtn: {
-      padding: 6,
-    },
-    deleteIconBtn: {
-      padding: 6,
     },
     emptyTitle: {
       fontSize: 18,
@@ -1203,23 +1351,14 @@ function createStyles(theme: any) {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
+      minWidth: 0,
+      paddingRight: 12,
     },
     embeddedTimerText: {
+      flexShrink: 1,
       fontSize: 14,
       fontWeight: "700",
       color: theme.colors.primary,
-    },
-    embeddedTimerButtons: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-    },
-    timerControlBtn: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      alignItems: "center",
-      justifyContent: "center",
     },
   });
 }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import type { FocusSession } from "@/types/session";
 import type { Todo } from "@/types/todo";
 import {
@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Modal,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
@@ -16,6 +18,7 @@ import { useCalendarData } from "@/hooks/useCalendarData";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useTodos } from "@/hooks/useTodos";
 import { formatStudyTime, formatDuration } from "@/utils/timeFormat";
+import { updateTodo } from "@/services/todos";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const WEEK_DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -199,6 +202,80 @@ export default function CalendarScreen({ navigation }: any) {
     setSelectedDate(dateKey);
   };
 
+  // ------ Overdue Tasks ------
+  const getTodayString = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const overdueTodos = useMemo(() => {
+    const today = getTodayString();
+    return allTodos.filter((t) => !t.completed && t.plannedDate && t.plannedDate < today);
+  }, [allTodos]);
+
+  // ------ Reschedule Handlers ------
+  const [rescheduleMenuVisible, setRescheduleMenuVisible] = useState(false);
+  const [rescheduleTargetId, setRescheduleTargetId] = useState<string | null>(null);
+
+  const openRescheduleMenu = useCallback((todoId: string) => {
+    setRescheduleTargetId(todoId);
+    setRescheduleMenuVisible(true);
+  }, []);
+
+  const closeRescheduleMenu = useCallback(() => {
+    setRescheduleMenuVisible(false);
+    setRescheduleTargetId(null);
+  }, []);
+
+  const moveToTomorrow = useCallback(async () => {
+    if (!rescheduleTargetId) return;
+    const today = new Date();
+    today.setDate(today.getDate() + 1);
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    const tomorrow = `${y}-${m}-${d}`;
+    try {
+      await updateTodo(rescheduleTargetId, { plannedDate: tomorrow });
+    } catch (err: any) {
+      Alert.alert("Error", err?.message ?? "Could not reschedule todo.");
+    } finally {
+      closeRescheduleMenu();
+    }
+  }, [rescheduleTargetId, closeRescheduleMenu]);
+
+  const moveToNextWeek = useCallback(async () => {
+    if (!rescheduleTargetId) return;
+    const today = new Date();
+    today.setDate(today.getDate() + 7);
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    const nextWeek = `${y}-${m}-${d}`;
+    try {
+      await updateTodo(rescheduleTargetId, { plannedDate: nextWeek });
+    } catch (err: any) {
+      Alert.alert("Error", err?.message ?? "Could not reschedule todo.");
+    } finally {
+      closeRescheduleMenu();
+    }
+  }, [rescheduleTargetId, closeRescheduleMenu]);
+
+  const openDatePickerForReschedule = useCallback(() => {
+    setRescheduleMenuVisible(false);
+    // We reuse the existing date picker by navigating to TodoScreen with a special param
+    if (rescheduleTargetId) {
+      navigation.navigate("TodoScreen", {
+        preselectedDate: selectedDate,
+        rescheduleTodoId: rescheduleTargetId,
+      });
+      setRescheduleTargetId(null);
+    }
+  }, [rescheduleTargetId, selectedDate, navigation]);
+
   if (loading && monthData.length === 0) {
     return (
       <SafeAreaView style={s.container}>
@@ -279,14 +356,33 @@ export default function CalendarScreen({ navigation }: any) {
               ))}
             </View>
 
-            {/* Selected Day Header */}
-            {selectedDayData && (
-              <Text style={s.selectedDayHeader}>
-                {new Date(selectedDayData.dateString + "T00:00:00").toLocaleDateString(
-                  "en-US",
-                  { weekday: "long", month: "long", day: "numeric" }
-                )}
-              </Text>
+            {/* Overdue Tasks Section */}
+            {overdueTodos.length > 0 && (
+              <View style={s.overdueSection}>
+                <View style={s.overdueHeader}>
+                  <Ionicons name="alert-circle" size={18} color={theme.colors.error} />
+                  <Text style={s.overdueTitle}>Overdue Tasks</Text>
+                </View>
+                {overdueTodos.map((todo) => (
+                  <View key={todo.id} style={s.overdueRow}>
+                    <View style={s.overdueInfo}>
+                      <Text style={s.overdueTitle} numberOfLines={1}>
+                        {todo.title}
+                      </Text>
+                      <Text style={s.overdueDate}>
+                        {todo.plannedDate}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => openRescheduleMenu(todo.id)}
+                      style={s.overdueRescheduleBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="calendar-outline" size={16} color={theme.colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
             )}
 
             {/* Planned Tasks Section */}
@@ -314,7 +410,7 @@ export default function CalendarScreen({ navigation }: any) {
             </View>
 
             {/* Completed Tasks Section */}
-            <View style={s.detailSection}>
+            <View style={selectedDayCompletedTodos.length === 0 ? s.detailSectionCompact : s.detailSection}>
               <View style={s.detailSectionHeader}>
                 <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.success} />
                 <Text style={s.detailSectionTitle}>Completed Tasks</Text>
@@ -368,7 +464,17 @@ export default function CalendarScreen({ navigation }: any) {
               </View>
             )}
 
-            {/* Session History (moved below Study Summary) */}
+            {/* Add Task Button */}
+            <TouchableOpacity
+              onPress={() => navigation.navigate("TodoScreen", { preselectedDate: selectedDate })}
+              style={s.addTaskBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={theme.colors.primary} />
+              <Text style={s.addTaskBtnText}>Add Task</Text>
+            </TouchableOpacity>
+
+            {/* Session History (last section in Weekly Mode) */}
             {selectedDayData && selectedDaySessions.length > 0 && (
               <View style={s.detailSection}>
                 <Text style={s.detailSectionTitle}>Session History</Text>
@@ -384,16 +490,6 @@ export default function CalendarScreen({ navigation }: any) {
                 ))}
               </View>
             )}
-
-            {/* Add Task Button */}
-            <TouchableOpacity
-              onPress={() => navigation.navigate("TodoScreen", { preselectedDate: selectedDate })}
-              style={s.addTaskBtn}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="add-circle-outline" size={20} color={theme.colors.primary} />
-              <Text style={s.addTaskBtnText}>Add Task</Text>
-            </TouchableOpacity>
           </>
         )}
 
@@ -626,6 +722,55 @@ export default function CalendarScreen({ navigation }: any) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Reschedule Menu Modal */}
+      <Modal
+        visible={rescheduleMenuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeRescheduleMenu}
+      >
+        <TouchableOpacity
+          style={s.rescheduleOverlay}
+          activeOpacity={1}
+          onPress={closeRescheduleMenu}
+        >
+          <View style={s.rescheduleMenu}>
+            <Text style={s.rescheduleTitle}>Reschedule Task</Text>
+            <TouchableOpacity
+              onPress={moveToTomorrow}
+              style={s.rescheduleOption}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="calendar-outline" size={20} color={theme.colors.primary} />
+              <Text style={s.rescheduleOptionText}>Move to Tomorrow</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={moveToNextWeek}
+              style={s.rescheduleOption}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="calendar-outline" size={20} color={theme.colors.primary} />
+              <Text style={s.rescheduleOptionText}>Move to Next Week</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={openDatePickerForReschedule}
+              style={s.rescheduleOption}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="calendar" size={20} color={theme.colors.primary} />
+              <Text style={s.rescheduleOptionText}>Pick Date</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={closeRescheduleMenu}
+              style={s.rescheduleCancelBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={s.rescheduleCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -965,6 +1110,15 @@ function createStyles(theme: any) {
       padding: 20,
       marginTop: 16,
     },
+    detailSectionCompact: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      marginTop: 16,
+    },
     detailSectionHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -1019,6 +1173,105 @@ function createStyles(theme: any) {
       fontSize: 15,
       fontWeight: "700",
       color: theme.colors.primary,
+    },
+    // Overdue Tasks
+    overdueSection: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: 16,
+      marginTop: 16,
+    },
+    overdueHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 12,
+    },
+    overdueTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: theme.colors.error,
+    },
+    overdueRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    overdueInfo: {
+      flex: 1,
+      marginRight: 8,
+    },
+    overdueDate: {
+      fontSize: 12,
+      fontWeight: "500",
+      color: theme.colors.textTertiary,
+      marginTop: 2,
+    },
+    overdueRescheduleBtn: {
+      padding: 8,
+      borderRadius: 8,
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    // Reschedule Modal
+    rescheduleOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 24,
+    },
+    rescheduleMenu: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 20,
+      padding: 20,
+      width: "100%",
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    rescheduleTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.colors.text,
+      marginBottom: 16,
+      textAlign: "center",
+    },
+    rescheduleOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      marginBottom: 8,
+    },
+    rescheduleOptionText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: theme.colors.text,
+    },
+    rescheduleCancelBtn: {
+      marginTop: 8,
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    rescheduleCancelText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: theme.colors.textSecondary,
+      textAlign: "center",
     },
   });
 }
