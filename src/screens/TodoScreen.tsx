@@ -91,7 +91,7 @@ const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete, onStar
   const plannedDisplay = planned > 0 ? formatStudyTime(plannedSeconds) : "";
 
   return (
-    <View style={[s.todoItemContainer, { height: showProgress ? 92 : 72 }]}>
+    <View style={s.todoItemContainer}>
       {/* Delete button behind */}
       <View style={[s.deleteButton, { width: DELETE_BUTTON_WIDTH }]}>
         <TouchableOpacity onPress={handleDelete} style={s.deleteButtonInner}>
@@ -108,60 +108,67 @@ const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete, onStar
         ]}
         {...panResponder.panHandlers}
       >
-        <TouchableOpacity
-          onPress={() => onToggle(todo.id, !todo.completed)}
-          style={s.checkboxContainer}
-          activeOpacity={0.7}
-        >
-          <View style={[s.checkbox, todo.completed && s.checkboxChecked]}>
-            {todo.completed && <Ionicons name="checkmark" size={16} color="#fff" />}
-          </View>
-        </TouchableOpacity>
+        {/* Row 1: Checkbox + Title */}
+        <View style={s.row1}>
+          <TouchableOpacity
+            onPress={() => onToggle(todo.id, !todo.completed)}
+            style={s.checkboxContainer}
+            activeOpacity={0.7}
+          >
+            <View style={[s.checkbox, todo.completed && s.checkboxChecked]}>
+              {todo.completed && <Ionicons name="checkmark" size={16} color="#fff" />}
+            </View>
+          </TouchableOpacity>
 
-        <View style={s.todoContent}>
           <Text
             style={[s.todoTitle, todo.completed && s.todoTitleCompleted]}
             numberOfLines={1}
           >
             {todo.title}
           </Text>
+
+          <TouchableOpacity onPress={handleDelete} style={s.deleteIconBtn}>
+            <Ionicons name="trash-outline" size={16} color={theme.colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Row 2: Progress bar + Progress text + Play button */}
+        <View style={s.row2}>
           {todo.completed ? (
-            <View style={s.progressRow}>
+            <>
               <View style={s.progressBarBg}>
                 <View style={[s.progressBarFill, { width: "100%", backgroundColor: theme.colors.primary }]} />
               </View>
               <Text style={s.progressText}>100%</Text>
-            </View>
+            </>
           ) : showProgress ? (
-            <View style={s.progressRow}>
+            <>
               <View style={s.progressBarBg}>
                 <View style={[s.progressBarFill, { width: `${Math.min(percent, 100)}%`, backgroundColor: theme.colors.primary }]} />
               </View>
               <Text style={s.progressText}>{focusDisplay} / {plannedDisplay}</Text>
-            </View>
+            </>
           ) : formatDuration(todo.plannedDurationMinutes) ? (
             <View style={s.durationRow}>
-              <Ionicons name="time-outline" size={12} color={theme.colors.textTertiary} />
+              <Ionicons name="time-outline" size={13} color={theme.colors.textTertiary} />
               <Text style={s.durationText}>
                 {formatDuration(todo.plannedDurationMinutes)}
               </Text>
             </View>
-          ) : null}
+          ) : (
+            <View style={s.durationRow} />
+          )}
+
+          {!todo.completed && (
+            <TouchableOpacity
+              onPress={() => onStartFocus(todo)}
+              style={s.startFocusBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="play" size={18} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
-
-        {!todo.completed && (
-          <TouchableOpacity
-            onPress={() => onStartFocus(todo)}
-            style={s.startFocusBtn}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="play" size={14} color={theme.colors.primary} />
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity onPress={handleDelete} style={s.deleteIconBtn}>
-          <Ionicons name="trash-outline" size={18} color={theme.colors.textTertiary} />
-        </TouchableOpacity>
       </Animated.View>
     </View>
   );
@@ -373,8 +380,11 @@ function createStyles(theme: any) {
       paddingBottom: 24,
     },
     todoItemContainer: {
+      height: 96,
       justifyContent: "center",
       marginBottom: 8,
+      overflow: "hidden",
+      borderRadius: 14,
     },
     deleteButton: {
       position: "absolute",
@@ -382,7 +392,7 @@ function createStyles(theme: any) {
       top: 0,
       bottom: 0,
       backgroundColor: theme.colors.error,
-      borderRadius: 12,
+      borderRadius: 14,
       justifyContent: "center",
       alignItems: "center",
       overflow: "hidden",
@@ -400,23 +410,32 @@ function createStyles(theme: any) {
       marginTop: 2,
     },
     todoItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.colors.card,
-      borderRadius: 12,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 14,
       padding: 14,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      height: 72,
-      gap: 12,
+      height: 96,
+      gap: 6,
+    },
+    row1: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    row2: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      flex: 1,
     },
     checkboxContainer: {
-      padding: 4,
+      padding: 2,
     },
     checkbox: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
       borderWidth: 2,
       borderColor: theme.colors.border,
       alignItems: "center",
@@ -427,12 +446,8 @@ function createStyles(theme: any) {
       backgroundColor: theme.colors.primary,
       borderColor: theme.colors.primary,
     },
-    todoContent: {
-      flex: 1,
-      justifyContent: "center",
-      gap: 4,
-    },
     todoTitle: {
+      flex: 1,
       fontSize: 15,
       fontWeight: "600",
       color: theme.colors.text,
@@ -441,30 +456,26 @@ function createStyles(theme: any) {
       textDecorationLine: "line-through",
       color: theme.colors.textTertiary,
     },
-    progressRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
     progressBarBg: {
       flex: 1,
-      height: 6,
-      borderRadius: 3,
+      height: 8,
+      borderRadius: 4,
       backgroundColor: theme.colors.border,
       overflow: "hidden",
     },
     progressBarFill: {
       height: "100%",
-      borderRadius: 3,
+      borderRadius: 4,
     },
     progressText: {
       fontSize: 11,
       fontWeight: "600",
       color: theme.colors.textSecondary,
-      minWidth: 60,
+      minWidth: 70,
       textAlign: "right",
     },
     durationRow: {
+      flex: 1,
       flexDirection: "row",
       alignItems: "center",
       gap: 4,
@@ -475,15 +486,15 @@ function createStyles(theme: any) {
       fontWeight: "500",
     },
     startFocusBtn: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: theme.colors.primary + "15",
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: theme.colors.primary,
       alignItems: "center",
       justifyContent: "center",
     },
     deleteIconBtn: {
-      padding: 8,
+      padding: 6,
     },
     emptyTitle: {
       fontSize: 18,
