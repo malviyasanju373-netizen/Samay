@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,12 +11,13 @@ import {
   Dimensions,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useTheme } from "@/context/ThemeContext";
 import { useTodos } from "@/hooks/useTodos";
-import { addTodo, toggleTodo, deleteTodo } from "@/services/todos";
+import { addTodo, toggleTodo, deleteTodo, updateTodo } from "@/services/todos";
 import { Todo } from "@/types/todo";
 import { CATEGORIES } from "@/types/session";
 import { formatStudyTime } from "@/utils/timeFormat";
@@ -25,14 +26,17 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 const SWIPE_THRESHOLD = -80;
 const DELETE_BUTTON_WIDTH = 80;
 
+type FilterMode = "active" | "completed";
+
 type TodoItemProps = {
   todo: Todo;
   onToggle: (id: string, completed: boolean) => void;
   onDelete: (id: string) => void;
   onStartFocus: (todo: Todo) => void;
+  onEdit: (todo: Todo) => void;
 };
 
-const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete, onStartFocus }: TodoItemProps) {
+const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete, onStartFocus, onEdit }: TodoItemProps) {
   const { theme } = useTheme();
   const s = createStyles(theme);
   const translateX = useRef(new Animated.Value(0)).current;
@@ -90,6 +94,8 @@ const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete, onStar
   const focusDisplay = actualFocusSeconds > 0 ? formatStudyTime(actualFocusSeconds) : "0s";
   const plannedDisplay = planned > 0 ? formatStudyTime(plannedSeconds) : "";
 
+  const subject = todo.subjectId ? CATEGORIES.find((c) => c.id === todo.subjectId) : null;
+
   return (
     <View style={s.todoItemContainer}>
       {/* Delete button behind */}
@@ -108,7 +114,7 @@ const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete, onStar
         ]}
         {...panResponder.panHandlers}
       >
-        {/* Row 1: Checkbox + Title */}
+        {/* Row 1: Checkbox + Title + Edit + Delete */}
         <View style={s.row1}>
           <TouchableOpacity
             onPress={() => onToggle(todo.id, !todo.completed)}
@@ -120,12 +126,24 @@ const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete, onStar
             </View>
           </TouchableOpacity>
 
-          <Text
-            style={[s.todoTitle, todo.completed && s.todoTitleCompleted]}
-            numberOfLines={1}
-          >
-            {todo.title}
-          </Text>
+          <View style={s.titleContainer}>
+            <Text
+              style={[s.todoTitle, todo.completed && s.todoTitleCompleted]}
+              numberOfLines={1}
+            >
+              {todo.title}
+            </Text>
+            {subject && (
+              <View style={s.subjectBadge}>
+                <View style={[s.subjectDot, { backgroundColor: subject.color }]} />
+                <Text style={s.subjectLabel}>{subject.label}</Text>
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity onPress={() => onEdit(todo)} style={s.editIconBtn}>
+            <Ionicons name="pencil" size={16} color={theme.colors.textTertiary} />
+          </TouchableOpacity>
 
           <TouchableOpacity onPress={handleDelete} style={s.deleteIconBtn}>
             <Ionicons name="trash-outline" size={16} color={theme.colors.textTertiary} />
@@ -182,11 +200,26 @@ export default function TodoScreen({ navigation }: any) {
   const [modalVisible, setModalVisible] = useState(false);
   const [title, setTitle] = useState("");
   const [duration, setDuration] = useState("");
+  const [subjectId, setSubjectId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [filter, setFilter] = useState<FilterMode>("active");
+
+  const isEditing = editingTodo !== null;
 
   const openAddModal = useCallback(() => {
+    setEditingTodo(null);
     setTitle("");
     setDuration("");
+    setSubjectId(null);
+    setModalVisible(true);
+  }, []);
+
+  const openEditModal = useCallback((todo: Todo) => {
+    setEditingTodo(todo);
+    setTitle(todo.title);
+    setDuration(todo.plannedDurationMinutes > 0 ? String(todo.plannedDurationMinutes) : "");
+    setSubjectId(todo.subjectId);
     setModalVisible(true);
   }, []);
 
@@ -198,16 +231,42 @@ export default function TodoScreen({ navigation }: any) {
 
     setSubmitting(true);
     try {
-      await addTodo(trimmed, null, minutes, null);
+      await addTodo(trimmed, subjectId, minutes, null);
       setModalVisible(false);
       setTitle("");
       setDuration("");
+      setSubjectId(null);
     } catch (err: any) {
       Alert.alert("Error", err?.message ?? "Could not create todo.");
     } finally {
       setSubmitting(false);
     }
-  }, [title, duration]);
+  }, [title, duration, subjectId]);
+
+  const handleUpdate = useCallback(async () => {
+    const trimmed = title.trim();
+    if (!trimmed || !editingTodo) return;
+
+    const minutes = duration.trim() === "" ? 0 : Math.max(0, parseInt(duration.trim(), 10) || 0);
+
+    setSubmitting(true);
+    try {
+      await updateTodo(editingTodo.id, {
+        title: trimmed,
+        subjectId,
+        plannedDurationMinutes: minutes,
+      });
+      setModalVisible(false);
+      setEditingTodo(null);
+      setTitle("");
+      setDuration("");
+      setSubjectId(null);
+    } catch (err: any) {
+      Alert.alert("Error", err?.message ?? "Could not update todo.");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [title, duration, subjectId, editingTodo]);
 
   const handleToggle = useCallback((id: string, completed: boolean) => {
     toggleTodo(id, completed).catch((err: any) => {
@@ -232,6 +291,30 @@ export default function TodoScreen({ navigation }: any) {
       },
     });
   }, [navigation]);
+
+  const filteredAndSortedTodos = useMemo(() => {
+    let result = [...todos];
+
+    if (filter === "active") {
+      result = result.filter((t) => !t.completed);
+      // Active: incomplete first (already filtered), then newest first
+      result.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis?.() ?? 0;
+        const bTime = b.createdAt?.toMillis?.() ?? 0;
+        return bTime - aTime;
+      });
+    } else {
+      result = result.filter((t) => t.completed);
+      // Completed: newest completed first
+      result.sort((a, b) => {
+        const aTime = a.completedAt?.toMillis?.() ?? 0;
+        const bTime = b.completedAt?.toMillis?.() ?? 0;
+        return bTime - aTime;
+      });
+    }
+
+    return result;
+  }, [todos, filter]);
 
   if (loading) {
     return (
@@ -270,15 +353,41 @@ export default function TodoScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      {todos.length === 0 ? (
+      {/* Filter Segmented Control */}
+      <View style={s.filterContainer}>
+        <TouchableOpacity
+          style={[s.filterBtn, filter === "active" && s.filterBtnActive]}
+          onPress={() => setFilter("active")}
+          activeOpacity={0.7}
+        >
+          <Text style={[s.filterBtnText, filter === "active" && s.filterBtnTextActive]}>
+            Active
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.filterBtn, filter === "completed" && s.filterBtnActive]}
+          onPress={() => setFilter("completed")}
+          activeOpacity={0.7}
+        >
+          <Text style={[s.filterBtnText, filter === "completed" && s.filterBtnTextActive]}>
+            Completed
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {filteredAndSortedTodos.length === 0 ? (
         <View style={s.center}>
           <Ionicons name="checkmark-done-circle-outline" size={64} color={theme.colors.textTertiary} />
-          <Text style={s.emptyTitle}>No Todos Yet</Text>
-          <Text style={s.emptySubtitle}>Tap + to create your first todo</Text>
+          <Text style={s.emptyTitle}>
+            {filter === "active" ? "No Active Todos" : "No Completed Todos"}
+          </Text>
+          <Text style={s.emptySubtitle}>
+            {filter === "active" ? "Tap + to create your first todo" : "Complete some todos to see them here"}
+          </Text>
         </View>
       ) : (
         <FlatList
-          data={todos}
+          data={filteredAndSortedTodos}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <TodoItem
@@ -286,6 +395,7 @@ export default function TodoScreen({ navigation }: any) {
               onToggle={handleToggle}
               onDelete={handleDelete}
               onStartFocus={handleStartFocus}
+              onEdit={openEditModal}
             />
           )}
           contentContainerStyle={s.listContent}
@@ -293,12 +403,12 @@ export default function TodoScreen({ navigation }: any) {
         />
       )}
 
-      {/* Add Todo Modal */}
+      {/* Add/Edit Todo Modal */}
       {modalVisible && (
         <View style={s.modalOverlay}>
           <View style={s.modalContent}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>New Todo</Text>
+              <Text style={s.modalTitle}>{isEditing ? "Edit Todo" : "New Todo"}</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
               </TouchableOpacity>
@@ -322,15 +432,56 @@ export default function TodoScreen({ navigation }: any) {
               keyboardType="number-pad"
             />
 
+            {/* Subject Picker */}
+            <Text style={s.sectionLabel}>Subject (optional)</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={s.subjectPicker}
+              contentContainerStyle={s.subjectPickerContent}
+            >
+              <TouchableOpacity
+                style={[s.subjectChip, subjectId === null && s.subjectChipSelected]}
+                onPress={() => setSubjectId(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.subjectChipText, subjectId === null && s.subjectChipTextSelected]}>
+                  None
+                </Text>
+              </TouchableOpacity>
+              {CATEGORIES.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    s.subjectChip,
+                    subjectId === cat.id && s.subjectChipSelected,
+                    { borderColor: cat.color },
+                  ]}
+                  onPress={() => setSubjectId(cat.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[s.subjectChipDot, { backgroundColor: cat.color }]} />
+                  <Text
+                    style={[
+                      s.subjectChipText,
+                      subjectId === cat.id && s.subjectChipTextSelected,
+                    ]}
+                  >
+                    {cat.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
             <TouchableOpacity
-              onPress={handleCreate}
+              onPress={isEditing ? handleUpdate : handleCreate}
               disabled={submitting || !title.trim()}
               style={[s.createBtn, (!title.trim() || submitting) && s.createBtnDisabled]}
             >
               {submitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={s.createBtnText}>Create Todo</Text>
+                <Text style={s.createBtnText}>{isEditing ? "Save Changes" : "Create Todo"}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -374,6 +525,33 @@ function createStyles(theme: any) {
       justifyContent: "center",
       borderWidth: 1,
       borderColor: theme.colors.border,
+    },
+    filterContainer: {
+      flexDirection: "row",
+      marginHorizontal: 16,
+      marginBottom: 12,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 12,
+      padding: 3,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    filterBtn: {
+      flex: 1,
+      paddingVertical: 8,
+      alignItems: "center",
+      borderRadius: 10,
+    },
+    filterBtnActive: {
+      backgroundColor: theme.colors.primary,
+    },
+    filterBtnText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.colors.textSecondary,
+    },
+    filterBtnTextActive: {
+      color: "#fff",
     },
     listContent: {
       paddingHorizontal: 16,
@@ -446,8 +624,11 @@ function createStyles(theme: any) {
       backgroundColor: theme.colors.primary,
       borderColor: theme.colors.primary,
     },
-    todoTitle: {
+    titleContainer: {
       flex: 1,
+      gap: 2,
+    },
+    todoTitle: {
       fontSize: 15,
       fontWeight: "600",
       color: theme.colors.text,
@@ -455,6 +636,21 @@ function createStyles(theme: any) {
     todoTitleCompleted: {
       textDecorationLine: "line-through",
       color: theme.colors.textTertiary,
+    },
+    subjectBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+    },
+    subjectDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    subjectLabel: {
+      fontSize: 11,
+      fontWeight: "500",
+      color: theme.colors.textSecondary,
     },
     progressBarBg: {
       flex: 1,
@@ -492,6 +688,9 @@ function createStyles(theme: any) {
       backgroundColor: theme.colors.primary,
       alignItems: "center",
       justifyContent: "center",
+    },
+    editIconBtn: {
+      padding: 6,
     },
     deleteIconBtn: {
       padding: 6,
@@ -559,6 +758,47 @@ function createStyles(theme: any) {
       borderWidth: 1,
       borderColor: theme.colors.border,
       marginBottom: 12,
+    },
+    sectionLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: theme.colors.textSecondary,
+      marginBottom: 8,
+    },
+    subjectPicker: {
+      marginBottom: 12,
+    },
+    subjectPickerContent: {
+      gap: 8,
+      paddingRight: 8,
+    },
+    subjectChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+    },
+    subjectChipSelected: {
+      backgroundColor: theme.colors.primary + "20",
+      borderColor: theme.colors.primary,
+    },
+    subjectChipDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    subjectChipText: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: theme.colors.textSecondary,
+    },
+    subjectChipTextSelected: {
+      color: theme.colors.primary,
     },
     createBtn: {
       backgroundColor: theme.colors.primary,
