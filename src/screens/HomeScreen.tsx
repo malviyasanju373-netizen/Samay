@@ -47,22 +47,32 @@ export default function HomeScreen({ navigation }: any) {
   const { profile: userProfile } = useUserProfile();
   const { currentStreak, bestStreak } = useStudyStreak();
 
-  // Planner summary computations
-  const activeCount = useMemo(() => todayTodos.length, [todayTodos]);
-  const completedCount = useMemo(() => allTodos.filter((t) => t.completed).length, [allTodos]);
-  const totalPlannedMinutes = useMemo(
-    () => todayTodos.reduce((sum, t) => sum + (t.plannedDurationMinutes || 0), 0),
-    [todayTodos],
-  );
-  const totalFocusedSeconds = useMemo(
-    () => todayTodos.reduce((sum, t) => sum + (t.actualFocusSeconds || 0), 0),
-    [todayTodos],
-  );
-  const totalPlannedSeconds = totalPlannedMinutes * 60;
-  const progressFraction = totalPlannedSeconds > 0
-    ? Math.min(totalFocusedSeconds / totalPlannedSeconds, 1)
-    : 0;
-  const totalTasks = activeCount + completedCount;
+  // Today's date string in YYYY-MM-DD format
+  const getTodayString = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+  const todayString = getTodayString();
+
+  // Today's Progress calculations
+  const todayProgress = useMemo(() => {
+    const plannedToday = allTodos.filter((t) => t.plannedDate === todayString);
+    const plannedCount = plannedToday.length;
+    const completedCount = plannedToday.filter((t) => t.completed).length;
+    const remainingCount = plannedCount - completedCount;
+    const completionPercentage = plannedCount > 0 ? Math.round((completedCount / plannedCount) * 100) : 0;
+
+    return {
+      plannedCount,
+      completedCount,
+      remainingCount,
+      completionPercentage,
+      hasTasks: plannedCount > 0,
+    };
+  }, [allTodos, todayString]);
 
   const load = useCallback(async () => {
     if (!user) {
@@ -257,38 +267,52 @@ export default function HomeScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
 
-        {/* Planner Summary Card */}
-        <View style={s.plannerSummary}>
-          <View style={s.plannerSummaryTop}>
-            <View style={s.plannerSummaryLeft}>
-              <Text style={s.plannerSummaryTitle}>Today's Progress</Text>
-              <Text style={s.plannerSummaryCount}>
-                {completedCount}/{totalTasks} Tasks Done
-              </Text>
+        {/* Today's Progress Card */}
+        {todayProgress.hasTasks ? (
+          <View style={s.todayProgressCard}>
+            <View style={s.todayProgressHeader}>
+              <Text style={s.todayProgressTitle}>Today's Progress</Text>
+              <Text style={s.todayProgressPercentage}>{todayProgress.completionPercentage}%</Text>
             </View>
-            <View style={s.plannerSummaryRight}>
-              <View style={s.plannerStatItem}>
-                <Ionicons name="time-outline" size={14} color={theme.colors.primary} />
-                <Text style={s.plannerStatText}>
-                  {formatStudyTime(totalFocusedSeconds)} / {formatStudyTime(totalPlannedSeconds)}
-                </Text>
+
+            {/* Stats Row */}
+            <View style={s.todayProgressStatsRow}>
+              <View style={s.todayProgressStatItem}>
+                <Text style={s.todayProgressStatValue}>{todayProgress.plannedCount}</Text>
+                <Text style={s.todayProgressStatLabel}>Planned</Text>
               </View>
-              <Text style={s.plannerStatLabel}>Focused</Text>
+              <View style={s.todayProgressStatDivider} />
+              <View style={s.todayProgressStatItem}>
+                <Text style={[s.todayProgressStatValue, { color: theme.colors.success }]}>{todayProgress.completedCount}</Text>
+                <Text style={s.todayProgressStatLabel}>Completed</Text>
+              </View>
+              <View style={s.todayProgressStatDivider} />
+              <View style={s.todayProgressStatItem}>
+                <Text style={[s.todayProgressStatValue, { color: theme.colors.accent1 }]}>{todayProgress.remainingCount}</Text>
+                <Text style={s.todayProgressStatLabel}>Remaining</Text>
+              </View>
+            </View>
+
+            {/* Progress Bar */}
+            <View style={s.todayProgressBarBg}>
+              <View
+                style={[
+                  s.todayProgressBarFill,
+                  {
+                    width: `${todayProgress.completionPercentage}%`,
+                    backgroundColor: todayProgress.completionPercentage >= 100 ? theme.colors.success : theme.colors.primary,
+                  },
+                ]}
+              />
             </View>
           </View>
-          {/* Progress bar */}
-          <View style={s.progressBarBg}>
-            <View
-              style={[
-                s.progressBarFill,
-                {
-                  width: `${Math.round(progressFraction * 100)}%`,
-                  backgroundColor: progressFraction >= 1 ? theme.colors.success : theme.colors.primary,
-                },
-              ]}
-            />
+        ) : (
+          <View style={s.todayProgressEmpty}>
+            <Ionicons name="calendar-outline" size={36} color={theme.colors.textTertiary} />
+            <Text style={s.todayProgressEmptyTitle}>No tasks planned for today</Text>
+            <Text style={s.todayProgressEmptySub}>Tap + in Todos to create your first task</Text>
           </View>
-        </View>
+        )}
 
         {/* Todo Cards */}
         {todayTodos.length > 0 ? (
@@ -419,64 +443,6 @@ function createStyles(theme: any) {
     todoDuration: { fontSize: 12, fontWeight: "700", color: theme.colors.textSecondary },
     startFocusBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
     startFocusText: { fontSize: 12, fontWeight: "700" },
-    // ---- Planner Summary Card ----
-    plannerSummary: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      padding: 16,
-      marginBottom: 12,
-    },
-    plannerSummaryTop: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 12,
-    },
-    plannerSummaryLeft: {
-      flex: 1,
-    },
-    plannerSummaryTitle: {
-      fontSize: 15,
-      fontWeight: "700",
-      color: theme.colors.text,
-      marginBottom: 4,
-    },
-    plannerSummaryCount: {
-      fontSize: 13,
-      fontWeight: "500",
-      color: theme.colors.textSecondary,
-    },
-    plannerSummaryRight: {
-      alignItems: "flex-end",
-    },
-    plannerStatItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-    },
-    plannerStatText: {
-      fontSize: 12,
-      fontWeight: "700",
-      color: theme.colors.text,
-    },
-    plannerStatLabel: {
-      fontSize: 10,
-      fontWeight: "600",
-      color: theme.colors.textTertiary,
-      marginTop: 2,
-    },
-    progressBarBg: {
-      height: 6,
-      borderRadius: 3,
-      backgroundColor: theme.colors.divider,
-      overflow: "hidden",
-    },
-    progressBarFill: {
-      height: "100%",
-      borderRadius: 3,
-    },
     // ---- Todo Card ----
     todoCard: {
       backgroundColor: theme.colors.surface,
@@ -534,6 +500,96 @@ function createStyles(theme: any) {
     todoCardTimeText: {
       fontSize: 11,
       fontWeight: "600",
+      color: theme.colors.textTertiary,
+    },
+    // ---- Today's Progress Card ----
+    todayProgressCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: 18,
+      marginBottom: 14,
+      shadowColor: theme.colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    todayProgressHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 14,
+    },
+    todayProgressTitle: {
+      fontSize: 16,
+      fontWeight: "800",
+      color: theme.colors.text,
+      letterSpacing: 0.2,
+    },
+    todayProgressPercentage: {
+      fontSize: 18,
+      fontWeight: "900",
+      color: theme.colors.primary,
+    },
+    todayProgressStatsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 14,
+    },
+    todayProgressStatItem: {
+      flex: 1,
+      alignItems: "center",
+    },
+    todayProgressStatValue: {
+      fontSize: 20,
+      fontWeight: "900",
+      color: theme.colors.text,
+    },
+    todayProgressStatLabel: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: theme.colors.textTertiary,
+      marginTop: 2,
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+    },
+    todayProgressStatDivider: {
+      width: 1,
+      height: 28,
+      backgroundColor: theme.colors.divider,
+    },
+    todayProgressBarBg: {
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: theme.colors.divider,
+      overflow: "hidden",
+    },
+    todayProgressBarFill: {
+      height: "100%",
+      borderRadius: 4,
+    },
+    todayProgressEmpty: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingVertical: 36,
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 14,
+    },
+    todayProgressEmptyTitle: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: theme.colors.textSecondary,
+      marginTop: 8,
+    },
+    todayProgressEmptySub: {
+      fontSize: 12,
+      fontWeight: "500",
       color: theme.colors.textTertiary,
     },
     // ---- Empty State ----
