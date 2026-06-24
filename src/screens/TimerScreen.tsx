@@ -31,7 +31,7 @@ function pad(n: number) { return String(n).padStart(2, "0"); }
 
 export default function TimerScreen({ route, navigation }: any) {
   const { theme } = useTheme();
-  const { timerState, minutes, seconds, progress, activeSession, error, clearError, start, pause, resume, stop, cancel, reset } = useFocusTimerContext();
+  const { timerState, minutes, seconds, progress, activeSession, error, clearError, start, pause, resume, stop, cancel, reset, dnd } = useFocusTimerContext();
   const s = createStyles(theme);
   console.log("[TIMER PARAMS]", JSON.stringify(route?.params));
   const routeParams = route?.params ?? {};
@@ -152,6 +152,16 @@ export default function TimerScreen({ route, navigation }: any) {
     <SafeAreaView style={s.container}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
+        {/* DND Indicator */}
+        {!isIdle && dnd.active && (
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 12, gap: 6 }}>
+            <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Text style={{ fontSize: 12 }}>🔕</Text>
+              <Text style={{ fontSize: 12, fontWeight: "600", color: theme.colors.textSecondary }}>DND Active</Text>
+            </View>
+          </View>
+        )}
+
         {/* Ring */}
         <View style={s.ringWrapper}>
           <Svg width={RING_SIZE} height={RING_SIZE}>
@@ -267,6 +277,26 @@ export default function TimerScreen({ route, navigation }: any) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* DND Permission Modal */}
+      <Modal visible={dnd.needsPermissionModal} transparent animationType="fade" onRequestClose={dnd.dismissPermissionModal}>
+        <Pressable style={s.backdrop} onPress={dnd.dismissPermissionModal}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={[s.modal, { maxWidth: 340 }]}>
+            <Text style={{ fontSize: 48, textAlign: "center", marginBottom: 12 }}>🔕</Text>
+            <Text style={s.modalTitle}>Allow DND Access</Text>
+            <Text style={{ fontSize: 14, color: theme.colors.textSecondary, textAlign: "center", lineHeight: 20, marginBottom: 20, paddingHorizontal: 8 }}>
+              Allow Samay to automatically enable Do Not Disturb during focus sessions.
+            </Text>
+            <TouchableOpacity onPress={dnd.requestPermission} style={[s.modalBtn, { backgroundColor: theme.colors.primary }]} activeOpacity={0.85}>
+              <Ionicons name="settings-outline" size={18} color="#fff" />
+              <Text style={s.modalBtnText}>Open Settings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={dnd.dismissPermissionModal} style={s.modalCancelBtn}>
+              <Text style={s.modalCancelText}>Not Now</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Start modal */}
       <Modal visible={showStartModal} transparent animationType="fade" onRequestClose={() => setShowStartModal(false)}>

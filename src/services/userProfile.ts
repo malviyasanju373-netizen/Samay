@@ -11,6 +11,7 @@ export type UserProfile = {
   createdAt: FirebaseFirestoreTypes.Timestamp;
   goal: string | null;
   dailyGoalMinutes: number | null;
+  autoDND: boolean;
 };
 
 const USERNAME_CHANGE_COOLDOWN_DAYS = 7;
@@ -65,6 +66,7 @@ export async function createInitialUserProfile(
       usernameLastChanged: null,
       goal: null,
       dailyGoalMinutes: null,
+      autoDND: false,
       createdAt: firestore.FieldValue.serverTimestamp() as unknown as FirebaseFirestoreTypes.Timestamp,
     };
 
@@ -197,6 +199,11 @@ export async function updateGoal(uid: string, goal: string): Promise<void> {
 export async function updateDailyGoalMinutes(uid: string, dailyGoalMinutes: number | null): Promise<void> {
   const db = requireFirestore();
   await db.collection("userProfiles").doc(uid).set({ dailyGoalMinutes }, { merge: true });
+}
+
+export async function updateAutoDND(uid: string, autoDND: boolean): Promise<void> {
+  const db = requireFirestore();
+  await db.collection("userProfiles").doc(uid).set({ autoDND }, { merge: true });
 }
 
 export function cooldownDaysRemaining(usernameLastChanged: FirebaseFirestoreTypes.Timestamp | null): number {

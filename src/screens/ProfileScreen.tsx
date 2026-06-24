@@ -16,6 +16,8 @@ import { getRecentSessions } from "@/services/sessions";
 import { FocusSession, CATEGORIES } from "@/types/session";
 import AppDialog, { AppDialogButton } from "@/components/AppDialog";
 import { formatStudyTime } from "@/utils/timeFormat";
+import { updateAutoDND } from "@/services/userProfile";
+import { Switch } from "react-native";
 
 const AVATAR_KEY = "LOCAL_PROFILE_PHOTO";
 
@@ -162,6 +164,16 @@ export default function ProfileScreen({ navigation }: any) {
       await reloadProfile();
     } catch (err: any) { showDialog("Error", err.message); }
     setDailyGoalLoading(false);
+  };
+
+  const handleToggleAutoDND = async (value: boolean) => {
+    if (!user) return;
+    try {
+      await updateAutoDND(user.uid, value);
+      await reloadProfile();
+    } catch (err: any) {
+      showDialog("Error", err.message);
+    }
   };
 
   const handleSignOut = () => {
@@ -324,6 +336,26 @@ export default function ProfileScreen({ navigation }: any) {
                 <Ionicons name="pencil" size={15} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             )}
+          </View>
+
+          {/* Auto DND */}
+          <View style={s.section}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <Text style={{ fontSize: 15, fontWeight: "600", color: theme.colors.text, marginBottom: 2 }}>
+                  Auto DND During Focus Session
+                </Text>
+                <Text style={{ fontSize: 12, color: theme.colors.textTertiary, lineHeight: 16 }}>
+                  Automatically silence distractions while studying.
+                </Text>
+              </View>
+              <Switch
+                value={profile?.autoDND ?? false}
+                onValueChange={handleToggleAutoDND}
+                trackColor={{ false: theme.colors.border, true: theme.colors.primary + "66" }}
+                thumbColor={profile?.autoDND ? theme.colors.primary : theme.colors.textTertiary}
+              />
+            </View>
           </View>
 
           {/* Theme */}

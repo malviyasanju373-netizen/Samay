@@ -12,6 +12,7 @@ import {
 import { startActiveFocusSession, stopActiveFocusSession, updateGroupMemberMinutes } from "@/services/groups";
 import { updateAttendance } from "@/services/attendance";
 import { STORAGE_KEYS } from "@/storage/services";
+import { useAutoDND } from "@/hooks/useAutoDND";
 
 type TimerState = "idle" | "running" | "paused";
 
@@ -46,6 +47,7 @@ export function useFocusTimer() {
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appActiveRef = useRef(AppState.currentState === "active");
   const elapsedSecondsRef = useRef(0);
+  const dnd = useAutoDND();
 
   // Restore active session from storage on mount
   useEffect(() => {
@@ -211,12 +213,14 @@ export function useFocusTimer() {
       setTimerState("running");
       console.log("[SESSION SAVED]", session);
       await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(session));
+      // Auto DND: enable DND when focus starts
+      dnd.onFocusStart().catch(() => {});
       return true;
     } catch (err: any) {
       setError(err?.message ?? "Could not start the session.");
       return false;
     }
-  }, []);
+  }, [dnd]);
 
   const pause = useCallback(() => {
     console.log("[TIMER PAUSE]");
@@ -238,7 +242,7 @@ export function useFocusTimer() {
       ).catch(() => {});
     }
     setTimerState("running");
-  }, [activeSession, elapsedSeconds]);
+  }, [activeSession, elapsedSeconds, dnd]);
 
 
 
@@ -280,6 +284,8 @@ export function useFocusTimer() {
       setElapsedSeconds(0);
       setActiveSession(null);
       await AsyncStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION);
+      // Auto DND: restore DND state when focus ends
+      dnd.onFocusEnd().catch(() => {});
       return durationSeconds;
     } catch (err: any) {
       setTimerState("paused");
@@ -312,7 +318,9 @@ export function useFocusTimer() {
         await setStudyingStatus(uid, false).catch(() => {});
       }
     }
-  }, [activeSession]);
+    // Auto DND: restore DND state when focus is cancelled
+    dnd.onFocusEnd().catch(() => {});
+  }, [activeSession, dnd]);
 
   const reset = useCallback(async () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -322,7 +330,9 @@ export function useFocusTimer() {
     setActiveSession(null);
     setError(null);
     await AsyncStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION);
-  }, []);
+    // Auto DND: restore DND state when focus is reset
+    dnd.onFocusEnd().catch(() => {});
+  }, [dnd]);
 
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
@@ -345,5 +355,6 @@ export function useFocusTimer() {
     stop,
     cancel,
     reset,
+    dnd,
   };
 }
