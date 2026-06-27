@@ -163,103 +163,7 @@ export default function HomeScreen({ navigation }: any) {
           </View>
         </TouchableOpacity>
 
-        {/* Daily Goal Progress Card */}
-        {(() => {
-          const dailyGoalMinutes = userProfile?.dailyGoalMinutes ?? null;
-          const dailyGoalSeconds = (dailyGoalMinutes ?? 0) * 60;
-          const progressFraction = dailyGoalSeconds > 0
-            ? Math.min(todaySeconds / dailyGoalSeconds, 1)
-            : 0;
-          const percentage = Math.round(progressFraction * 100);
-          const goalAchieved = dailyGoalMinutes !== null && dailyGoalMinutes > 0 && percentage >= 100;
-
-          if (dailyGoalMinutes === null || dailyGoalMinutes === 0) {
-            return (
-              <View style={s.goalCard}>
-                <Text style={s.goalTitle}>Daily Goal</Text>
-                <Text style={s.goalPlaceholder}>Set your daily goal from Profile</Text>
-              </View>
-            );
-          }
-
-          return (
-            <View style={s.goalCard}>
-              <View style={s.goalTopRow}>
-                <Text style={s.goalTitle}>Daily Goal</Text>
-                {goalAchieved && <Text style={s.goalAchieved}>⭐ Goal Achieved</Text>}
-              </View>
-              <Text style={s.goalProgressText}>
-                {formatStudyTime(todaySeconds)} / {formatStudyTime(dailyGoalSeconds)}
-              </Text>
-              <View style={s.goalProgressBarBg}>
-                <View
-                  style={[
-                    s.goalProgressBarFill,
-                    {
-                      width: `${percentage}%`,
-                      backgroundColor: goalAchieved ? theme.colors.success : theme.colors.primary,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={s.goalPercentage}>{percentage}%</Text>
-            </View>
-          );
-        })()}
-
-        {/* Study Streak Card */}
-        <View style={s.streakCard}>
-          <View style={s.streakHeader}>
-            <Text style={s.streakTitle}>🔥 Current Streak</Text>
-          </View>
-          <View style={s.streakValues}>
-            <View style={s.streakValueItem}>
-              <Text style={s.streakValue}>{currentStreak} Days</Text>
-            </View>
-            <View style={s.streakDivider} />
-            <View style={s.streakValueItem}>
-              <Text style={s.streakLabel}>Best</Text>
-              <Text style={s.streakValue}>{bestStreak} Days</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Mini stats */}
-        <View style={s.miniRow}>
-          <View style={s.miniCard}>
-            <Ionicons name="time-outline" size={22} color={theme.colors.accent5} />
-            <Text style={s.miniValue}>{formatStudyTime(totalSeconds)}</Text>
-            <Text style={s.miniLabel}>Total</Text>
-          </View>
-          <TouchableOpacity style={s.miniCard} onPress={() => navigation.navigate("Leaderboard")} activeOpacity={0.8}>
-            <Ionicons name="trophy-outline" size={22} color={"#FFD700"} />
-            <Text style={s.miniValue}>Top 10</Text>
-            <Text style={s.miniLabel}>Board</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.miniCard} onPress={() => navigation.navigate("Stats")} activeOpacity={0.8}>
-            <Ionicons name="bar-chart-outline" size={22} color={theme.colors.accent1} />
-            <Text style={s.miniValue}>Stats</Text>
-            <Text style={s.miniLabel}>Weekly</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick-start categories */}
-        <Text style={s.sectionTitle}>Quick Start</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.categoryScroll} contentContainerStyle={{ gap: 10, paddingRight: 20 }}>
-          {CATEGORIES.slice(0, 6).map((cat) => (
-            <TouchableOpacity
-              key={cat.id}
-              style={[s.categoryChip, { borderColor: cat.color + "44" }]}
-              onPress={() => navigation.navigate("Timer", { categoryId: cat.id })}
-              activeOpacity={0.8}
-            >
-              <Ionicons name={cat.icon as any} size={20} color={cat.color} />
-              <Text style={[s.categoryLabel, { color: cat.color }]}>{cat.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Today's Planner */}
+        {/* Today's Planner Section */}
         <View style={s.sectionHeader}>
           <Text style={s.sectionTitle}>Today's Planner</Text>
           <TouchableOpacity onPress={() => navigation.navigate("TodoScreen")} activeOpacity={0.8}>
@@ -305,6 +209,25 @@ export default function HomeScreen({ navigation }: any) {
                 ]}
               />
             </View>
+
+            {/* Next Task Preview */}
+            {todayTodos.length > 0 && (
+              <View style={s.nextTaskPreview}>
+                <Text style={s.nextTaskLabel}>Next Task</Text>
+                <View style={s.nextTaskRow}>
+                  <Text style={s.nextTaskName} numberOfLines={1}>
+                    {todayTodos[0].title}
+                  </Text>
+                  <Text style={s.nextTaskMeta}>
+                    {(() => {
+                      const nextCat = CATEGORIES.find((c) => c.id === todayTodos[0].subjectId);
+                      return nextCat ? nextCat.label : "General";
+                    })()}
+                    {todayTodos[0].plannedDurationMinutes > 0 && ` • ${todayTodos[0].plannedDurationMinutes}m`}
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
         ) : (
           <View style={s.todayProgressEmpty}>
@@ -322,9 +245,10 @@ export default function HomeScreen({ navigation }: any) {
             const todoProgress = todoPlannedSecs > 0
               ? Math.min((todo.actualFocusSeconds || 0) / todoPlannedSecs, 1)
               : 0;
+            const hasProgress = (todo.actualFocusSeconds || 0) > 0;
             return (
               <View key={todo.id} style={s.todoCard}>
-                {/* Row 1: Checkbox + Title + Focus button */}
+                {/* Row 1: Checkbox + Title + Start/Continue button */}
                 <View style={s.todoCardRow1}>
                   <TouchableOpacity
                     onPress={() => handleToggle(todo.id, !todo.completed)}
@@ -350,7 +274,7 @@ export default function HomeScreen({ navigation }: any) {
                     activeOpacity={0.7}
                   >
                     <Ionicons name="play" size={12} color="#fff" />
-                    <Text style={s.focusPillText}>Focus</Text>
+                    <Text style={s.focusPillText}>{hasProgress ? "Continue" : "Start"}</Text>
                   </TouchableOpacity>
                 </View>
                 {/* Progress bar */}
@@ -384,6 +308,111 @@ export default function HomeScreen({ navigation }: any) {
             <Text style={s.emptyTodosSub}>Create your first task from Todos</Text>
           </View>
         )}
+
+        {/* Daily Goal Progress Card */}
+        {(() => {
+          const dailyGoalMinutes = userProfile?.dailyGoalMinutes ?? null;
+          const dailyGoalSeconds = (dailyGoalMinutes ?? 0) * 60;
+          const progressFraction = dailyGoalSeconds > 0
+            ? Math.min(todaySeconds / dailyGoalSeconds, 1)
+            : 0;
+          const percentage = Math.round(progressFraction * 100);
+          const goalAchieved = dailyGoalMinutes !== null && dailyGoalMinutes > 0 && percentage >= 100;
+
+          if (dailyGoalMinutes === null || dailyGoalMinutes === 0) {
+            return (
+              <TouchableOpacity
+                onPress={() => navigation.navigate("Profile")}
+                style={s.goalCard}
+                activeOpacity={0.8}
+              >
+                <Text style={s.goalTitle}>Daily Goal</Text>
+                <View style={s.goalEmptyRow}>
+                  <Text style={s.goalPlaceholder}>Set your daily goal</Text>
+                  <Ionicons name="create-outline" size={18} color={theme.colors.primary} />
+                </View>
+              </TouchableOpacity>
+            );
+          }
+
+          return (
+            <View style={s.goalCard}>
+              <View style={s.goalTopRow}>
+                <Text style={s.goalTitle}>Daily Goal</Text>
+                {goalAchieved && <Text style={s.goalAchieved}>⭐ Goal Achieved</Text>}
+              </View>
+              <Text style={s.goalProgressText}>
+                {formatStudyTime(todaySeconds)} / {formatStudyTime(dailyGoalSeconds)}
+              </Text>
+              <View style={s.goalProgressBarBg}>
+                <View
+                  style={[
+                    s.goalProgressBarFill,
+                    {
+                      width: `${percentage}%`,
+                      backgroundColor: goalAchieved ? theme.colors.success : theme.colors.primary,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={s.goalPercentage}>{percentage}%</Text>
+            </View>
+          );
+        })()}
+
+        {/* Study Streak Card */}
+        <View style={s.streakCard}>
+          <View style={s.streakHeader}>
+            <Text style={s.streakTitle}>🔥 Current Streak</Text>
+          </View>
+          <View style={s.streakValues}>
+            <View style={s.streakValueItem}>
+              <Text style={s.streakValue}>{currentStreak}</Text>
+              <Text style={s.streakUnit}>Days</Text>
+            </View>
+            <View style={s.streakDivider} />
+            <View style={s.streakValueItem}>
+              <Text style={s.streakLabel}>Best</Text>
+              <Text style={s.streakValue}>{bestStreak}</Text>
+              <Text style={s.streakUnit}>Days</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Mini stats */}
+        <View style={s.miniRow}>
+          <View style={s.miniCard}>
+            <Ionicons name="time-outline" size={22} color={theme.colors.accent5} />
+            <Text style={s.miniValue}>{formatStudyTime(totalSeconds)}</Text>
+            <Text style={s.miniLabel}>Total</Text>
+          </View>
+          <TouchableOpacity style={s.miniCard} onPress={() => navigation.navigate("Leaderboard")} activeOpacity={0.8}>
+            <Ionicons name="trophy-outline" size={22} color={"#FFD700"} />
+            <Text style={s.miniValue}>Top 10</Text>
+            <Text style={s.miniLabel}>Board</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.miniCard} onPress={() => navigation.navigate("Stats")} activeOpacity={0.8}>
+            <Ionicons name="bar-chart-outline" size={22} color={theme.colors.accent1} />
+            <Text style={s.miniValue}>Stats</Text>
+            <Text style={s.miniLabel}>Weekly</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick-start categories */}
+        <Text style={s.sectionTitle}>Quick Start</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.categoryScroll} contentContainerStyle={s.categoryScrollContent}>
+          {CATEGORIES.slice(0, 6).map((cat) => (
+            <TouchableOpacity
+              key={cat.id}
+              style={[s.categoryChip, { borderColor: cat.color + "44" }]}
+              onPress={() => navigation.navigate("Timer", { categoryId: cat.id })}
+              activeOpacity={0.8}
+            >
+              <Ionicons name={cat.icon as any} size={20} color={cat.color} />
+              <Text style={[s.categoryLabel, { color: cat.color }]}>{cat.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -433,6 +462,47 @@ function createStyles(theme: any) {
     sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
     seeAll: { fontSize: 13, color: theme.colors.primary, fontWeight: "600" },
     categoryScroll: { marginBottom: 20 },
+    categoryScrollContent: { gap: 10, paddingRight: 20, alignItems: "center" },
+    nextTaskPreview: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: 12,
+      marginTop: 14,
+    },
+    nextTaskLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: theme.colors.textTertiary,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: 4,
+    },
+    nextTaskRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    nextTaskName: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: theme.colors.text,
+      flex: 1,
+    },
+    nextTaskMeta: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: theme.colors.textSecondary,
+      marginLeft: 8,
+    },
+    goalEmptyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: 4,
+    },
+    streakUnit: { fontSize: 12, fontWeight: "600", color: theme.colors.textTertiary, marginTop: -2 },
     categoryChip: { backgroundColor: theme.colors.surface, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, alignItems: "center", gap: 6, borderWidth: 1.5, minWidth: 72 },
     categoryLabel: { fontSize: 11, fontWeight: "700" },
     // ---- Old todo styles kept for reference (unused in new design) ----

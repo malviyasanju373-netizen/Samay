@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
-  Clipboard, Animated, PanResponder, Pressable
+  Clipboard, Animated, PanResponder, Pressable, LayoutChangeEvent
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@react-native-vector-icons/ionicons';
@@ -16,7 +16,7 @@ const INPUT_BAR_HEIGHT = 56;
 const MENU_ITEM_HEIGHT = 50;
 const MENU_BORDER_RADIUS = 16;
 const SWIPE_THRESHOLD = 50;
-const FIVE_MINUTES_MS = 5 * 60 * 1000;
+const SIGNIFICANT_GAP_MS = 10 * 60 * 1000;
 
 function toMillis(value: any): number {
   if (typeof value?.toDate === 'function') return value.toDate().getTime();
@@ -173,6 +173,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
   const [sending, setSending] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ReplyTo | null>(null);
   const [actionItem, setActionItem] = useState<any>(null);
+  const [composerHeight, setComposerHeight] = useState(INPUT_BAR_HEIGHT);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef<FlatList>(null);
@@ -181,7 +182,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
   const highlightAnim = useRef(new Animated.Value(0)).current;
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const listData = useMemo(() => buildListData(messages), [messages]);
-  const s = useMemo(() => createStyles(theme, insets), [theme, insets]);
+  const s = useMemo(() => createStyles(theme), [theme]);
 
   const handleItemLayout = useCallback((id: string, height: number) => {
     if (height > 0) {
@@ -269,6 +270,13 @@ export default function GroupChatScreen({ route, navigation }: any) {
 
   const cancelReply = useCallback(() => {
     setReplyingTo(null);
+  }, []);
+
+  const handleComposerLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = event.nativeEvent.layout.height;
+    setComposerHeight((currentHeight) =>
+      Math.abs(currentHeight - nextHeight) > 1 ? nextHeight : currentHeight
+    );
   }, []);
 
   const handleReplyTap = useCallback((messageId: string) => {
@@ -391,7 +399,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
         const prevMs = toMillis(prevItem.createdAt);
         const currMs = toMillis(item.createdAt);
         if (Number.isFinite(prevMs) && Number.isFinite(currMs)) {
-          if (currMs - prevMs > FIVE_MINUTES_MS) {
+          if (currMs - prevMs > SIGNIFICANT_GAP_MS) {
             showSenderName = true;
           }
         }
@@ -428,7 +436,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.container} edges={['top']}>
+      <SafeAreaView style={s.container}>
         <View style={s.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
             <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
@@ -443,7 +451,7 @@ export default function GroupChatScreen({ route, navigation }: any) {
 
   return (
     <View style={{ flex: 1 }}>
-      <SafeAreaView style={s.container} edges={['top']}>
+      <SafeAreaView style={s.container}>
         <View style={s.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
             <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
@@ -453,91 +461,92 @@ export default function GroupChatScreen({ route, navigation }: any) {
         </View>
 
         <KeyboardAvoidingView
-          behavior="padding"
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={s.keyboardAvoid}
         >
-          <FlatList
-            ref={flatListRef as any}
-            data={listData}
-            keyExtractor={(item: any) => item._type === 'dateSeparator' ? item.id : item.id}
-            renderItem={renderItem}
-            contentContainerStyle={s.messagesList}
-            getItemLayout={getItemLayout}
-            onViewableItemsChanged={({ viewableItems }) => {
-              if (viewableItems.length > 0) {
-                const indices = viewableItems
-                  .filter(v => v.isViewable)
-                  .map(v => v.index)
-                  .filter(i => i !== null && i !== undefined);
-                if (indices.length > 0) {
-                  viewabilityRef.current = {
-                    firstVisibleIndex: Math.min(...indices),
-                    lastVisibleIndex: Math.max(...indices),
-                  };
+          <View style={s.chatBody}>
+            <FlatList
+              ref={flatListRef as any}
+              data={listData}
+              keyExtractor={(item: any) => item._type === 'dateSeparator' ? item.id : item.id}
+              renderItem={renderItem}
+              style={s.messages}
+              contentContainerStyle={[s.messagesList, { paddingBottom: composerHeight }]}
+              getItemLayout={getItemLayout}
+              onViewableItemsChanged={({ viewableItems }) => {
+                if (viewableItems.length > 0) {
+                  const indices = viewableItems
+                    .filter(v => v.isViewable)
+                    .map(v => v.index)
+                    .filter(i => i !== null && i !== undefined);
+                  if (indices.length > 0) {
+                    viewabilityRef.current = {
+                      firstVisibleIndex: Math.min(...indices),
+                      lastVisibleIndex: Math.max(...indices),
+                    };
+                  }
                 }
-              }
-            }}
-            viewabilityConfig={{
-              itemVisiblePercentThreshold: 50,
-              minimumViewTime: 100,
-            }}
-            onContentSizeChange={() => {
-              console.log('onContentSizeChange fired');
-              if (listData.length > 0 && !isReplyScrollingRef.current) {
-                try {
-                  flatListRef.current?.scrollToIndex({
-                    index: listData.length - 1,
-                    animated: false
-                  });
-                } catch {}
-              }
-            }}
-            ListEmptyComponent={() => (
-              <View style={s.emptyContainer}>
-                <Text style={s.emptyText}>No messages yet. Start the conversation!</Text>
-              </View>
-            )}
-          />
-
-          {replyingTo && (
-            <View style={[s.replyBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
-              <View style={s.replyBarIndicator} />
-              <View style={s.replyBarContent}>
-                <Text style={[s.replyBarSender, { color: theme.colors.primary }]} numberOfLines={1}>
-                  Replying to {replyingTo.senderId === currentUid ? 'You' : replyingTo.senderName}
-                </Text>
-                <Text style={[s.replyBarText, { color: theme.colors.textTertiary }]} numberOfLines={1}>
-                  {replyingTo.text}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={cancelReply} style={s.replyBarClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close" size={20} color={theme.colors.textTertiary} />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View style={s.inputContainer}>
-            <TextInput
-              style={[s.textInput, { backgroundColor: theme.colors.surface, color: theme.colors.text }]}
-              placeholder="Type a message..."
-              placeholderTextColor={theme.colors.textTertiary}
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              maxLength={500}
-            />
-            <TouchableOpacity
-              style={[s.sendBtn, (!inputText.trim() || sending) && s.sendBtnDisabled]}
-              onPress={handleSend}
-              disabled={!inputText.trim() || sending}
-            >
-              {sending ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Ionicons name="send" size={20} color="#fff" />
+              }}
+              viewabilityConfig={{
+                itemVisiblePercentThreshold: 50,
+                minimumViewTime: 100,
+              }}
+              onContentSizeChange={() => {
+                console.log('onContentSizeChange fired');
+                if (listData.length > 0 && !isReplyScrollingRef.current) {
+                  try {
+                    flatListRef.current?.scrollToEnd({ animated: false });
+                  } catch {}
+                }
+              }}
+              ListEmptyComponent={() => (
+                <View style={s.emptyContainer}>
+                  <Text style={s.emptyText}>No messages yet. Start the conversation!</Text>
+                </View>
               )}
-            </TouchableOpacity>
+            />
+
+            <View style={s.composer} onLayout={handleComposerLayout}>
+              {replyingTo && (
+                <View style={[s.replyBar, { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
+                  <View style={s.replyBarIndicator} />
+                  <View style={s.replyBarContent}>
+                    <Text style={[s.replyBarSender, { color: theme.colors.primary }]} numberOfLines={1}>
+                      Replying to {replyingTo.senderId === currentUid ? 'You' : replyingTo.senderName}
+                    </Text>
+                    <Text style={[s.replyBarText, { color: theme.colors.textTertiary }]} numberOfLines={1}>
+                      {replyingTo.text}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={cancelReply} style={s.replyBarClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close" size={20} color={theme.colors.textTertiary} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <View style={s.inputContainer}>
+                <TextInput
+                  style={[s.textInput, { backgroundColor: theme.colors.surface, color: theme.colors.text }]}
+                  placeholder="Type a message..."
+                  placeholderTextColor={theme.colors.textTertiary}
+                  value={inputText}
+                  onChangeText={setInputText}
+                  multiline
+                  maxLength={500}
+                />
+                <TouchableOpacity
+                  style={[s.sendBtn, (!inputText.trim() || sending) && s.sendBtnDisabled]}
+                  onPress={handleSend}
+                  disabled={!inputText.trim() || sending}
+                >
+                  {sending ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="send" size={20} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -579,25 +588,27 @@ export default function GroupChatScreen({ route, navigation }: any) {
   );
 }
 
-const createStyles = (theme: any, insets: any) => StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   keyboardAvoid: { flex: 1 },
+  chatBody: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: theme.colors.card },
   backBtn: { width: 44, height: 44, justifyContent: 'center' },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: theme.colors.text, textAlign: 'center' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  messagesList: { paddingHorizontal: 12, paddingTop: 4, paddingBottom: 4 },
-  messageRow: { marginBottom: 4, maxWidth: '80%' },
+  messages: { flex: 1 },
+  messagesList: { paddingHorizontal: 8, paddingTop: 2 },
+  messageRow: { marginBottom: 2, maxWidth: '80%' },
   messageRowLeft: { alignSelf: 'flex-start' },
   messageRowRight: { alignSelf: 'flex-end' },
-  senderName: { fontSize: 12, color: theme.colors.primary, marginBottom: 2, fontWeight: '600' },
-  bubble: { borderRadius: 12, paddingVertical: 8, paddingHorizontal: 12, maxWidth: '100%', overflow: 'hidden' },
+  senderName: { fontSize: 11, color: theme.colors.primary, marginBottom: 1, fontWeight: '600' },
+  bubble: { borderRadius: 16, paddingVertical: 6, paddingHorizontal: 10, maxWidth: '100%', overflow: 'hidden' },
   bubbleOwn: { backgroundColor: theme.colors.primary },
   bubbleOther: { backgroundColor: theme.colors.card },
-  messageText: { fontSize: 16, lineHeight: 20 },
+  messageText: { fontSize: 15, lineHeight: 19 },
   messageTextOwn: { color: '#fff' },
   messageTextOther: { color: theme.colors.text },
-  timeText: { fontSize: 9, marginTop: 2, alignSelf: 'flex-end', letterSpacing: 0.2 },
+  timeText: { fontSize: 10, marginTop: 1, alignSelf: 'flex-end', letterSpacing: 0.2 },
   timeTextOwn: { color: 'rgba(255,255,255,0.5)' },
   timeTextOther: { color: theme.colors.textTertiary, opacity: 0.7 },
 
@@ -605,7 +616,7 @@ const createStyles = (theme: any, insets: any) => StyleSheet.create({
   dateSeparator: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 6,
+    marginVertical: 4,
     paddingHorizontal: 16,
   },
   dateSeparatorLine: {
@@ -614,7 +625,7 @@ const createStyles = (theme: any, insets: any) => StyleSheet.create({
     backgroundColor: theme.colors.border,
   },
   dateSeparatorText: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.colors.textTertiary,
     marginHorizontal: 12,
     fontWeight: '500',
@@ -627,25 +638,26 @@ const createStyles = (theme: any, insets: any) => StyleSheet.create({
   replyPreviewOwn: {},
   replyPreviewOther: {},
   replyPreviewBar: {
-    width: 3,
+    width: 2,
     backgroundColor: theme.colors.primary,
-    borderRadius: 2,
-    marginRight: 6,
+    borderRadius: 1,
+    marginRight: 4,
     flexShrink: 0,
+    opacity: 0.7,
   },
   replyPreviewContent: {
     flex: 1,
   },
   replyPreviewSender: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
-    marginBottom: 1,
+    marginBottom: 0,
   },
   replyPreviewSenderOwn: { color: 'rgba(255,255,255,0.85)' },
   replyPreviewSenderOther: { color: theme.colors.primary },
   replyPreviewText: {
-    fontSize: 12,
-    lineHeight: 14,
+    fontSize: 11,
+    lineHeight: 13,
   },
   replyPreviewTextOwn: { color: 'rgba(255,255,255,0.55)' },
   replyPreviewTextOther: { color: theme.colors.textTertiary, opacity: 0.7 },
@@ -655,43 +667,47 @@ const createStyles = (theme: any, insets: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderTopWidth: 1,
+    paddingVertical: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   replyBarIndicator: {
-    width: 3,
-    height: 28,
+    width: 2,
+    height: 20,
     backgroundColor: theme.colors.primary,
-    borderRadius: 2,
+    borderRadius: 1,
     marginRight: 8,
+    opacity: 0.7,
   },
   replyBarContent: {
     flex: 1,
   },
   replyBarSender: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    marginBottom: 1,
+    marginBottom: 0,
   },
   replyBarText: {
-    fontSize: 12,
-    lineHeight: 14,
+    fontSize: 11,
+    lineHeight: 13,
   },
   replyBarClose: {
     padding: 4,
     marginLeft: 8,
   },
 
+  composer: {
+    backgroundColor: theme.colors.background,
+  },
   inputContainer: {
     flexDirection: 'row',
     paddingHorizontal: 12,
     paddingTop: 8,
-    paddingBottom: 8 + insets.bottom,
+    paddingBottom: 8,
     backgroundColor: theme.colors.background,
     alignItems: 'flex-end',
   },
-  textInput: { flex: 1, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, maxHeight: 80, fontSize: 15 },
-  sendBtn: { marginLeft: 8, backgroundColor: theme.colors.primary, borderRadius: 20, width: 38, height: 38, justifyContent: 'center', alignItems: 'center' },
+  textInput: { flex: 1, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 22, paddingHorizontal: 12, paddingVertical: 6, maxHeight: 80, fontSize: 15, backgroundColor: theme.colors.surface },
+  sendBtn: { marginLeft: 8, backgroundColor: theme.colors.primary, borderRadius: 18, width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
   sendBtnDisabled: { opacity: 0.5 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
   emptyText: { color: theme.colors.textTertiary, fontSize: 14 },
@@ -732,6 +748,6 @@ const createStyles = (theme: any, insets: any) => StyleSheet.create({
   highlightOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#FFE082',
-    borderRadius: 12,
+    borderRadius: 16,
   },
 });

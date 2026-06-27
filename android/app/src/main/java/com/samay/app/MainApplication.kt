@@ -1,6 +1,5 @@
 package com.samay.app
 
-
 import android.app.Application
 import android.content.res.Configuration
 
@@ -14,18 +13,19 @@ import com.facebook.react.common.ReleaseLevel
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint
 import com.facebook.react.defaults.DefaultReactNativeHost
 
+import com.samay.app.dnd.DNDPackage
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
-
-import com.samay.app.dnd.DNDPackage
 
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
       this,
       object : DefaultReactNativeHost(this) {
-          override fun getPackages(): List<ReactPackage> =
+        override fun getPackages(): List<ReactPackage> =
             PackageList(this).packages.apply {
+              // Packages that cannot be autolinked yet can be added manually here, for example:
+              // add(MyReactNativePackage())
               add(DNDPackage())
             }
 
@@ -42,7 +42,6 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
-    
     DefaultNewArchitectureEntryPoint.releaseLevel = try {
       ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
     } catch (e: IllegalArgumentException) {

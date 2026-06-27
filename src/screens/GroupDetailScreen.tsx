@@ -293,30 +293,47 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           />
         }
       >
-        {/* Group Info Card */}
-        <View style={s.infoCard}>
-          <Text style={s.groupName}>{group?.name || "Study Group"}</Text>
-          <Text style={s.groupDesc}>{group?.description || "No description"}</Text>
-          <View style={s.groupStats}>
-            <View style={s.statItem}>
-              <Text style={s.statLabel}>Members</Text>
-              <Text style={s.statValue}>{group?.memberCount ?? 0}/{group?.maxMembers ?? 0}</Text>
+        {/* Hero Group Card */}
+        <View style={s.heroCard}>
+          <View style={s.heroHeader}>
+            <View style={s.heroTitleRow}>
+              <Text style={s.groupName} numberOfLines={1}>
+                {group?.name || "Study Group"}
+              </Text>
             </View>
-            <View style={s.statItem}>
-              <Text style={s.statLabel}>Study Time</Text>
-              <Text style={s.statValue}>{formatStudyTime(group?.totalStudyTimeSeconds ?? (group?.totalStudyTime || 0) * 3600)}</Text>
+            <Text style={s.groupDesc} numberOfLines={2}>
+              {group?.description || "No description"}
+            </Text>
+          </View>
+
+          {/* Compact Metric Pills */}
+          <View style={s.metricPills}>
+            <View style={[s.metricPill, { backgroundColor: theme.colors.primary + "15" }]}>
+              <Ionicons name="people" size={14} color={theme.colors.primary} />
+              <Text style={[s.metricPillText, { color: theme.colors.primary }]}>
+                {group?.memberCount ?? 0}/{group?.maxMembers ?? 0}
+              </Text>
             </View>
-            <View style={s.statItem}>
-              <Text style={s.statLabel}>Cam Study</Text>
-              <Text style={s.statValue}>{group?.camStudyHours ?? 0}h</Text>
+            <View style={[s.metricPill, { backgroundColor: theme.colors.success + "15" }]}>
+              <Ionicons name="time" size={14} color={theme.colors.success} />
+              <Text style={[s.metricPillText, { color: theme.colors.success }]}>
+                {formatStudyTime(group?.totalStudyTimeSeconds ?? (group?.totalStudyTime || 0) * 3600)}
+              </Text>
+            </View>
+            <View style={[s.metricPill, { backgroundColor: theme.colors.warning + "15" }]}>
+              <Ionicons name="videocam" size={14} color={theme.colors.warning} />
+              <Text style={[s.metricPillText, { color: theme.colors.warning }]}>
+                {group?.camStudyHours ?? 0}h
+              </Text>
             </View>
           </View>
 
+          {/* Primary CTA */}
           {!isMember && !isAdmin && (
-            <>
+            <View style={s.ctaContainer}>
               {group?.isPrivate && !hasPendingRequest ? (
                 <TouchableOpacity
-                  style={[s.joinBtn, joining && s.joinBtnDisabled]}
+                  style={[s.ctaButton, joining && s.ctaButtonDisabled]}
                   onPress={handleRequestJoin}
                   disabled={joining}
                 >
@@ -325,21 +342,21 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                   ) : (
                     <>
                       <Ionicons name="mail" size={16} color="#fff" />
-                      <Text style={s.joinBtnText}>Request to Join</Text>
+                      <Text style={s.ctaButtonText}>Request to Join</Text>
                     </>
                   )}
                 </TouchableOpacity>
               ) : hasPendingRequest ? (
                 <TouchableOpacity
-                  style={[s.joinBtn, s.joinBtnPending]}
+                  style={[s.ctaButton, s.ctaButtonPending]}
                   disabled={true}
                 >
                   <Ionicons name="time-outline" size={16} color={theme.colors.primary} />
-                  <Text style={[s.joinBtnText, { color: theme.colors.primary }]}>Request Pending</Text>
+                  <Text style={[s.ctaButtonText, { color: theme.colors.primary }]}>Request Pending</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
-                  style={[s.joinBtn, joining && s.joinBtnDisabled]}
+                  style={[s.ctaButton, joining && s.ctaButtonDisabled]}
                   onPress={handleJoin}
                   disabled={joining}
                 >
@@ -348,63 +365,84 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                   ) : (
                     <>
                       <Ionicons name="person-add" size={16} color="#fff" />
-                      <Text style={s.joinBtnText}>Join Group</Text>
+                      <Text style={s.ctaButtonText}>Join Group</Text>
                     </>
                   )}
                 </TouchableOpacity>
               )}
-            </>
+            </View>
           )}
 
           {(isMember || isAdmin) && (
             <TouchableOpacity
-              style={s.groupStudyBtn}
+              style={s.ctaButtonPrimary}
               onPress={handleStartGroupStudy}
               activeOpacity={0.85}
             >
               <Ionicons name="play-circle" size={18} color="#fff" />
-              <Text style={s.joinBtnText}>Start Group Study</Text>
+              <Text style={s.ctaButtonText}>Start Group Study</Text>
             </TouchableOpacity>
           )}
         </View>
 
+        {/* 2x2 Dashboard Grid */}
         {(isMember || isAdmin) && (
-          <View style={s.navCardsContainer}>
+          <View style={s.dashboardGrid}>
             {isAdmin && group?.isPrivate && (
               <TouchableOpacity 
-                style={s.navCard} 
+                style={s.gridTile} 
                 onPress={() => safeNavigate("PendingRequests", { groupId, groupName: group?.name })}
               >
-                <View style={s.navCardIconContainer}>
-                  <Ionicons name="mail-outline" size={24} color={theme.colors.primary} />
+                <View style={s.gridTileIcon}>
+                  <Ionicons name="mail-outline" size={34} color={theme.colors.primary} />
                   {pendingRequestCount > 0 && (
                     <View style={[s.badge, { backgroundColor: theme.colors.error }]}>
                       <Text style={s.badgeText}>{pendingRequestCount}</Text>
                     </View>
                   )}
                 </View>
-                <Text style={s.navCardText}>Requests</Text>
+                <Text style={s.gridTileLabel}>Requests</Text>
               </TouchableOpacity>
             )}
             
-            <TouchableOpacity style={s.navCard} onPress={() => safeNavigate("GroupLeaderboard", { groupId, groupName: group?.name })}>
-              <Ionicons name="trophy-outline" size={24} color={theme.colors.primary} />
-              <Text style={s.navCardText}>Leaderboard</Text>
+            <TouchableOpacity 
+              style={s.gridTile} 
+              onPress={() => safeNavigate("GroupLeaderboard", { groupId, groupName: group?.name })}
+            >
+              <View style={s.gridTileIcon}>
+                <Ionicons name="trophy-outline" size={34} color={theme.colors.warning} />
+              </View>
+              <Text style={s.gridTileLabel}>Leaderboard</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={s.navCard} onPress={() => safeNavigate("GroupChat", { groupId, groupName: group?.name })}>
-              <Ionicons name="chatbubbles-outline" size={24} color={theme.colors.primary} />
-              <Text style={s.navCardText}>Group Chat</Text>
+            <TouchableOpacity 
+              style={s.gridTile} 
+              onPress={() => safeNavigate("GroupChat", { groupId, groupName: group?.name })}
+            >
+              <View style={s.gridTileIcon}>
+                <Ionicons name="chatbubbles-outline" size={34} color={theme.colors.info} />
+              </View>
+              <Text style={s.gridTileLabel}>Group Chat</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={s.navCard} onPress={() => safeNavigate("GroupMembers", { groupId, groupName: group?.name })}>
-              <Ionicons name="people-outline" size={24} color={theme.colors.primary} />
-              <Text style={s.navCardText}>Members</Text>
+            <TouchableOpacity 
+              style={s.gridTile} 
+              onPress={() => safeNavigate("GroupMembers", { groupId, groupName: group?.name })}
+            >
+              <View style={s.gridTileIcon}>
+                <Ionicons name="people-outline" size={34} color={theme.colors.accent1} />
+              </View>
+              <Text style={s.gridTileLabel}>Members</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={s.navCard} onPress={() => safeNavigate("GroupAttendance", { groupId, groupName: group?.name })}>
-              <Ionicons name="calendar-outline" size={24} color={theme.colors.primary} />
-              <Text style={s.navCardText}>Attendance</Text>
+            <TouchableOpacity 
+              style={s.gridTile} 
+              onPress={() => safeNavigate("GroupAttendance", { groupId, groupName: group?.name })}
+            >
+              <View style={s.gridTileIcon}>
+                <Ionicons name="calendar-outline" size={34} color={theme.colors.accent2} />
+              </View>
+              <Text style={s.gridTileLabel}>Attendance</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -424,6 +462,8 @@ const createStyles = (theme: any) =>
       paddingHorizontal: 16, 
       paddingVertical: 12,
       backgroundColor: theme.colors.card,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
     },
     backBtn: { width: 44, height: 44, justifyContent: "center" },
     headerTitle: { fontSize: 18, fontWeight: "700", color: theme.colors.text, flex: 1 },
@@ -431,81 +471,123 @@ const createStyles = (theme: any) =>
     headerActionBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
     content: { flex: 1 },
     scrollContent: { padding: 16 },
-    infoCard: {
+    heroCard: {
       backgroundColor: theme.colors.card,
-      borderRadius: 12,
+      borderRadius: 16,
       padding: 16,
       marginBottom: 16,
+      gap: 14,
     },
-    groupName: { fontSize: 20, fontWeight: "800", color: theme.colors.text, marginBottom: 8 },
-    groupDesc: { fontSize: 14, color: theme.colors.textSecondary, marginBottom: 12 },
-    groupStats: { flexDirection: "row", gap: 16, marginBottom: 12 },
-    statItem: { alignItems: "center" },
-    statLabel: { fontSize: 12, color: theme.colors.textTertiary },
-    statValue: { fontSize: 18, fontWeight: "700", color: theme.colors.primary },
-    joinBtn: {
-      backgroundColor: theme.colors.primary,
-      borderRadius: 8,
-      paddingVertical: 10,
+    heroHeader: {
+      gap: 6,
+    },
+    heroTitleRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
+      gap: 10,
     },
-    joinBtnDisabled: { opacity: 0.6 },
-    joinBtnPending: {
-      backgroundColor: "transparent",
-      borderWidth: 2,
-      borderColor: theme.colors.primary,
+    groupName: { 
+      fontSize: 20, 
+      fontWeight: "800", 
+      color: theme.colors.text,
+      letterSpacing: -0.3,
     },
-    joinBtnText: { color: "#fff", fontWeight: "700" },
-    groupStudyBtn: {
-      backgroundColor: theme.colors.primary,
-      borderRadius: 8,
-      paddingVertical: 10,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      marginTop: 12,
+    groupDesc: { 
+      fontSize: 13, 
+      color: theme.colors.textSecondary, 
+      lineHeight: 18,
     },
-    navCardsContainer: {
+    metricPills: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 12,
-      justifyContent: "space-between",
+      gap: 8,
     },
-    navCard: {
-      backgroundColor: theme.colors.card,
-      width: "48%",
-      borderRadius: 12,
-      padding: 16,
+    metricPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 20,
+    },
+    metricPillText: {
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    ctaContainer: {
+      marginTop: 4,
+    },
+    ctaButton: {
+      backgroundColor: theme.colors.primary,
+      borderRadius: 10,
+      paddingVertical: 12,
+      flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
       gap: 8,
     },
-    navCardIconContainer: {
+    ctaButtonDisabled: { opacity: 0.6 },
+    ctaButtonPending: {
+      backgroundColor: "transparent",
+      borderWidth: 1.5,
+      borderColor: theme.colors.primary,
+    },
+    ctaButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    ctaButtonPrimary: {
+      backgroundColor: theme.colors.primary,
+      borderRadius: 10,
+      paddingVertical: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
+    dashboardGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+    },
+    gridTile: {
+      width: "48%",
+      backgroundColor: theme.colors.card,
+      borderRadius: 12,
+      padding: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      aspectRatio: 1,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    gridTileIcon: {
+      width: "auto",
+      height: "auto",
+      alignItems: "center",
+      justifyContent: "center",
       position: "relative",
+    },
+    gridTileLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: theme.colors.text,
+      textAlign: "center",
     },
     badge: {
       position: "absolute",
-      top: -8,
-      right: -8,
+      top: -6,
+      right: -6,
       borderRadius: 12,
-      minWidth: 24,
-      height: 24,
+      minWidth: 20,
+      height: 20,
       justifyContent: "center",
       alignItems: "center",
-      paddingHorizontal: 6,
+      paddingHorizontal: 5,
+      borderWidth: 2,
+      borderColor: theme.colors.card,
     },
     badgeText: {
       color: "#fff",
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: "700",
-    },
-    navCardText: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.colors.text,
     },
   });

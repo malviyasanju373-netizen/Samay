@@ -14,8 +14,8 @@ import firestore from "@react-native-firebase/firestore";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-const RING_SIZE = 240;
-const STROKE_W = 14;
+const RING_SIZE = 230;
+const STROKE_W = 12;
 const RADIUS = (RING_SIZE - STROKE_W) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
@@ -27,7 +27,13 @@ const TARGETS = [
   { label: "Free", minutes: null },
 ];
 
-function pad(n: number) { return String(n).padStart(2, "0"); }
+function formatTimer(totalMinutes: number, totalSeconds: number) {
+  const secs = totalMinutes * 60 + totalSeconds;
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 export default function TimerScreen({ route, navigation }: any) {
   const { theme } = useTheme();
@@ -52,18 +58,49 @@ export default function TimerScreen({ route, navigation }: any) {
   const [busy, setBusy] = useState(false);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const breathAnim = useRef(new Animated.Value(1)).current;
+  const pressAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.timing(progressAnim, {
       toValue: progress,
-      duration: 800,
+      duration: 1000,
       useNativeDriver: false,
     }).start();
   }, [progress]);
 
+  // Gentle breathing for idle state
+  useEffect(() => {
+    if (timerState === "idle") {
+      const breathing = Animated.loop(
+        Animated.sequence([
+          Animated.timing(breathAnim, {
+            toValue: 0.98,
+            duration: 3000,
+            useNativeDriver: false,
+          }),
+          Animated.timing(breathAnim, {
+            toValue: 1,
+            duration: 3000,
+            useNativeDriver: false,
+          }),
+        ])
+      );
+      breathing.start();
+      return () => breathing.stop();
+    } else {
+      breathAnim.setValue(1);
+    }
+  }, [timerState]);
+
   const strokeDashoffset = progressAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [CIRCUMFERENCE, 0],
+  });
+
+  const breathScale = breathAnim.interpolate({
+    inputRange: [0.98, 1],
+    outputRange: [0.995, 1],
   });
 
   const isIdle    = timerState === "idle";
@@ -77,6 +114,21 @@ export default function TimerScreen({ route, navigation }: any) {
     : isPaused
     ? theme.colors.timerPaused
     : theme.colors.timerRing;
+
+  const handlePressIn = () => {
+    Animated.spring(pressAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(pressAnim, {
+      toValue: 1,
+      friction: 4,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const handleStartPress = () => {
     if (!isIdle) return;
@@ -154,125 +206,168 @@ export default function TimerScreen({ route, navigation }: any) {
 
         {/* DND Indicator */}
         {!isIdle && dnd.active && (
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 12, gap: 6 }}>
-            <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Text style={{ fontSize: 12 }}>🔕</Text>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: theme.colors.textSecondary }}>DND Active</Text>
-            </View>
+          <View style={s.dndPill}>
+            <Ionicons name="moon-outline" size={14} color={theme.colors.textTertiary} />
+            <Text style={s.dndPillText}>DND Active</Text>
           </View>
         )}
 
-        {/* Ring */}
-        <View style={s.ringWrapper}>
-          <Svg width={RING_SIZE} height={RING_SIZE}>
-            {/* Background track */}
-            <Circle
-              cx={RING_SIZE / 2} cy={RING_SIZE / 2}
-              r={RADIUS}
-              stroke={theme.colors.timerRingBg}
-              strokeWidth={STROKE_W}
-              fill="none"
-            />
-            {/* Progress arc */}
-            <AnimatedCircle
-              cx={RING_SIZE / 2} cy={RING_SIZE / 2}
-              r={RADIUS}
-              stroke={ringColor}
-              strokeWidth={STROKE_W}
-              fill="none"
-              strokeLinecap="round"
-              strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
-              strokeDashoffset={strokeDashoffset}
-              rotation="-90"
-              origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
-            />
-          </Svg>
+        {/* Timer Ring */}
+        <View style={s.ringContainer}>
+          <Animated.View style={[s.ringWrapper, isIdle && { transform: [{ scale: breathScale }] }]}>
+            <Svg width={RING_SIZE} height={RING_SIZE}>
+              {/* Background track */}
+              <Circle
+                cx={RING_SIZE / 2} cy={RING_SIZE / 2}
+                r={RADIUS}
+                stroke={theme.colors.timerRingBg}
+                strokeWidth={STROKE_W}
+                fill="none"
+              />
+              {/* Progress arc */}
+              <AnimatedCircle
+                cx={RING_SIZE / 2} cy={RING_SIZE / 2}
+                r={RADIUS}
+                stroke={ringColor}
+                strokeWidth={STROKE_W}
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+                strokeDashoffset={strokeDashoffset}
+                rotation="-90"
+                origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+              />
+            </Svg>
 
-          {/* Center display */}
-          <View style={s.ringCenter}>
-            {isIdle ? (
-              <>
-                <Text style={s.readyText}>Ready</Text>
-                <View style={[s.categoryDot, { backgroundColor: selectedCat.color + "20" }]}>
-                  <Ionicons name={selectedCat.icon as any} size={22} color={selectedCat.color} />
-                </View>
-              </>
-            ) : (
-              <>
+            {/* Center display */}
+            <View style={s.ringCenter}>
+              {isIdle ? (
+                <Text style={s.readyText}>Ready to focus?</Text>
+              ) : (
                 <Text style={[s.timerText, { color: ringColor }]}>
-                  {pad(minutes)}:{pad(seconds)}
+                  {formatTimer(minutes, seconds)}
                 </Text>
-                <Text style={s.timerCategory}>{activeSession?.title ?? selectedCat.label}</Text>
-                {selectedTarget && (
-                  <Text style={s.timerTarget}>{selectedTarget}m goal</Text>
-                )}
-              </>
-            )}
-          </View>
+              )}
+            </View>
+          </Animated.View>
         </View>
+
+        {/* Subject display (running/paused) */}
+        {!isIdle && (
+          <Text style={s.activeSubject}>{activeSession?.title ?? selectedCat.label}</Text>
+        )}
 
         {/* Controls */}
-        <View style={s.controls}>
-          {isIdle && (
-            <TouchableOpacity onPress={handleStartPress} disabled={busy} style={[s.mainBtn, { backgroundColor: theme.colors.primary }, busy && s.disabled]} activeOpacity={0.85}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Ionicons name="play" size={28} color="#fff" />}
+        {isIdle && (
+          <TouchableOpacity
+            onPress={handleStartPress}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            disabled={busy}
+            style={[s.startBtn, { backgroundColor: theme.colors.primary }, busy && s.disabled]}
+            activeOpacity={0.9}
+          >
+            {busy ? <ActivityIndicator color="#fff" /> : <Ionicons name="play" size={24} color="#fff" />}
+            <Text style={s.startBtnText}>Start Focus</Text>
+          </TouchableOpacity>
+        )}
+
+        {isRunning && (
+          <View style={s.controlRow}>
+            <TouchableOpacity
+              onPress={handlePause}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+              style={[s.controlBtn, { backgroundColor: theme.colors.timerPaused }]}
+              activeOpacity={0.9}
+            >
+              <Ionicons name="pause" size={20} color="#fff" />
+              <Text style={s.controlBtnText}>Pause</Text>
             </TouchableOpacity>
-          )}
-          {isRunning && (
-            <>
-              <TouchableOpacity onPress={handlePause} style={[s.mainBtn, { backgroundColor: theme.colors.timerPaused }]} activeOpacity={0.85}>
-                <Ionicons name="pause" size={28} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleStop} disabled={busy} style={[s.stopBtn, busy && s.disabled]} activeOpacity={0.85}>
-                {busy ? <ActivityIndicator color={theme.colors.error} /> : <Ionicons name="stop" size={22} color={theme.colors.error} />}
-              </TouchableOpacity>
-            </>
-          )}
-          {isPaused && (
-            <>
-              <TouchableOpacity onPress={handleResume} style={[s.mainBtn, { backgroundColor: theme.colors.timerActive }]} activeOpacity={0.85}>
-                <Ionicons name="play" size={28} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleTrash} disabled={busy} style={[s.stopBtn, busy && s.disabled]} activeOpacity={0.85}>
-                <Ionicons name="trash-outline" size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+            <TouchableOpacity
+              onPress={handleStop}
+              disabled={busy}
+              style={[s.controlBtnSecondary, busy && s.disabled]}
+              activeOpacity={0.9}
+            >
+              {busy ? <ActivityIndicator color={theme.colors.error} /> : <Ionicons name="stop" size={20} color={theme.colors.error} />}
+              <Text style={s.controlBtnSecondaryText}>Stop</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {isPaused && (
+          <View style={s.controlRow}>
+            <TouchableOpacity
+              onPress={handleResume}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+              style={[s.controlBtn, { backgroundColor: theme.colors.timerActive }]}
+              activeOpacity={0.9}
+            >
+              <Ionicons name="play" size={20} color="#fff" />
+              <Text style={s.controlBtnText}>Resume</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleTrash}
+              disabled={busy}
+              style={[s.controlBtnSecondary, busy && s.disabled]}
+              activeOpacity={0.9}
+            >
+              <Ionicons name="trash-outline" size={20} color={theme.colors.textSecondary} />
+              <Text style={s.controlBtnSecondaryText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {error ? <Text style={s.errorText}>{error}</Text> : null}
 
         {/* Category selector (only when idle) */}
         {isIdle && (
-          <>
-            <Text style={s.sectionLabel}>SUBJECT</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 20 }}>
-              {CATEGORIES.map((cat) => (
-                <TouchableOpacity
-                  key={cat.id}
-                  onPress={() => setSelectedCategoryId(cat.id)}
-                  style={[s.catChip, selectedCategoryId === cat.id && { backgroundColor: cat.color + "22", borderColor: cat.color }]}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name={cat.icon as any} size={16} color={selectedCategoryId === cat.id ? cat.color : theme.colors.textSecondary} />
-                  <Text style={[s.catLabel, selectedCategoryId === cat.id && { color: cat.color, fontWeight: "700" }]}>{cat.label}</Text>
-                </TouchableOpacity>
-              ))}
+          <View style={s.section}>
+            <Text style={s.sectionLabel}>Subject</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow}>
+              {CATEGORIES.map((cat) => {
+                const isSelected = selectedCategoryId === cat.id;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    onPress={() => setSelectedCategoryId(cat.id)}
+                    style={[s.chip, isSelected && { backgroundColor: theme.colors.primary + "20", borderColor: theme.colors.primary }]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={cat.icon as any}
+                      size={16}
+                      color={isSelected ? theme.colors.primary : theme.colors.textSecondary}
+                    />
+                    <Text style={[s.chipText, isSelected && { color: theme.colors.primary }]}>
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
 
-            <Text style={[s.sectionLabel, { marginTop: 20 }]}>GOAL</Text>
-            <View style={s.targetRow}>
-              {TARGETS.map((t) => (
-                <TouchableOpacity
-                  key={t.label}
-                  onPress={() => setSelectedTarget(t.minutes)}
-                  style={[s.targetChip, selectedTarget === t.minutes && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }]}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[s.targetLabel, selectedTarget === t.minutes && { color: "#fff", fontWeight: "700" }]}>{t.label}</Text>
-                </TouchableOpacity>
-              ))}
+            <Text style={[s.sectionLabel, { marginTop: 24 }]}>Goal</Text>
+            <View style={s.goalRow}>
+              {TARGETS.map((t) => {
+                const isSelected = selectedTarget === t.minutes;
+                return (
+                  <TouchableOpacity
+                    key={t.label}
+                    onPress={() => setSelectedTarget(t.minutes)}
+                    style={[s.goalChip, isSelected && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.goalChipText, isSelected && { color: "#fff" }]}>
+                      {t.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-          </>
+          </View>
         )}
 
         <View style={{ height: 40 }} />
@@ -349,25 +444,107 @@ export default function TimerScreen({ route, navigation }: any) {
 function createStyles(theme: any) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.background },
-    scroll: { alignItems: "center", paddingHorizontal: 16, paddingTop: 24 },
-    ringWrapper: { position: "relative", alignItems: "center", justifyContent: "center", marginBottom: 32 },
+    scroll: { alignItems: "center", paddingHorizontal: 24, paddingTop: 24 },
+    dndPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      marginBottom: 32,
+    },
+    dndPillText: {
+      fontSize: 12,
+      fontWeight: "500",
+      color: theme.colors.textTertiary,
+    },
+    ringContainer: {
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 40,
+    },
+    ringWrapper: {
+      alignItems: "center",
+      justifyContent: "center",
+    },
     ringCenter: { position: "absolute", alignItems: "center" },
-    readyText: { fontSize: 22, fontWeight: "700", color: theme.colors.textSecondary },
-    categoryDot: { marginTop: 10, width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
-    timerText: { fontSize: 56, fontWeight: "900", letterSpacing: -2 },
-    timerCategory: { fontSize: 14, fontWeight: "600", color: theme.colors.textSecondary, marginTop: -4 },
-    timerTarget: { fontSize: 12, color: theme.colors.textTertiary, marginTop: 2 },
-    controls: { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 32 },
-    disabled: { opacity: 0.6 },
-    errorText: { color: theme.colors.error, fontSize: 13, fontWeight: "600", textAlign: "center", marginTop: -18, marginBottom: 20 },
-    mainBtn: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center" },
-    stopBtn: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: theme.colors.border },
-    sectionLabel: { alignSelf: "flex-start", fontSize: 10, fontWeight: "700", color: theme.colors.textTertiary, letterSpacing: 1.2, marginBottom: 10 },
-    catChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
-    catLabel: { fontSize: 13, fontWeight: "500", color: theme.colors.textSecondary },
-    targetRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignSelf: "stretch" },
-    targetChip: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 22, borderWidth: 1.5, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
-    targetLabel: { fontSize: 13, fontWeight: "600", color: theme.colors.textSecondary },
+    readyText: { fontSize: 20, fontWeight: "600", color: theme.colors.textTertiary, letterSpacing: -0.3 },
+    timerText: { fontSize: 40, fontWeight: "700", color: theme.colors.text, letterSpacing: 1.5, fontVariant: ["tabular-nums"] },
+    activeSubject: { fontSize: 15, fontWeight: "500", color: theme.colors.textSecondary, marginBottom: 40, textAlign: "center" },
+    startBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+      paddingVertical: 18,
+      paddingHorizontal: 32,
+      borderRadius: 14,
+      minWidth: 200,
+    },
+    startBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
+    controlRow: {
+      flexDirection: "row",
+      gap: 16,
+      alignItems: "center",
+    },
+    controlBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 16,
+      paddingHorizontal: 24,
+      borderRadius: 12,
+      minWidth: 120,
+    },
+    controlBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+    controlBtnSecondary: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 16,
+      paddingHorizontal: 24,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      minWidth: 120,
+    },
+    controlBtnSecondaryText: { fontSize: 15, fontWeight: "600", color: theme.colors.textSecondary },
+    disabled: { opacity: 0.5 },
+    errorText: { color: theme.colors.error, fontSize: 13, fontWeight: "600", textAlign: "center", marginTop: 16 },
+    section: { width: "100%", marginTop: 8 },
+    sectionLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: theme.colors.textSecondary,
+      marginBottom: 12,
+    },
+    chipRow: { gap: 10, paddingRight: 20, alignItems: "center" },
+    chip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 20,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+    },
+    chipText: { fontSize: 13, fontWeight: "500", color: theme.colors.textSecondary },
+    goalRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    goalChip: {
+      flex: 1,
+      minWidth: 60,
+      paddingVertical: 10,
+      borderRadius: 20,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      alignItems: "center",
+    },
+    goalChipText: { fontSize: 13, fontWeight: "600", color: theme.colors.textSecondary },
     backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
     modal: { width: "100%", backgroundColor: theme.colors.surface, borderRadius: 24, padding: 24, alignItems: "center", borderWidth: 1, borderColor: theme.colors.border },
     modalTitle: { fontSize: 17, fontWeight: "700", color: theme.colors.text, marginBottom: 14, textAlign: "center" },
