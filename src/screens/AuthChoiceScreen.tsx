@@ -156,18 +156,25 @@ export default function AuthChoiceScreen() {
       }
       
       const userInfo = await googleSignInModule.GoogleSignin.signIn();
+
+      if (userInfo.type === "cancelled") {
+        if (__DEV__) {
+          console.log("[GoogleSignIn] Sign-in cancelled by user");
+        }
+        return;
+      }
       
       if (__DEV__) {
         console.log("[GoogleSignIn] User signed in successfully", {
-          uid: userInfo.data?.user?.id ? userInfo.data.user.id.substring(0, 8) + "..." : "N/A",
-          hasIdToken: !!userInfo.data?.idToken,
-          hasServerAuthCode: !!userInfo.data?.serverAuthCode,
-          userName: userInfo.data?.user?.name,
-          userEmail: userInfo.data?.user?.email,
+          uid: userInfo.data.user.id ? userInfo.data.user.id.substring(0, 8) + "..." : "N/A",
+          hasIdToken: !!userInfo.data.idToken,
+          hasServerAuthCode: !!userInfo.data.serverAuthCode,
+          userName: userInfo.data.user.name,
+          userEmail: userInfo.data.user.email,
         });
       }
       
-      const idToken = userInfo.data?.idToken ?? (userInfo as any).idToken;
+      const idToken = userInfo.data.idToken;
       
       if (__DEV__) {
         console.log("[GoogleSignIn] Extracted idToken", {

@@ -140,6 +140,7 @@ export default function RootNavigator() {
       <Stack.Screen name="GroupChat"        component={GroupChatScreen} />
       <Stack.Screen name="CamStudyComingSoon" component={CamStudyComingSoonScreen} />
       <Stack.Screen name="Stats" component={StatsScreen} />
+      <Stack.Screen name="Sessions" component={SessionsScreen} />
       <Stack.Screen name="TodoScreen" component={TodoScreen} />
     </Stack.Navigator>
   );
